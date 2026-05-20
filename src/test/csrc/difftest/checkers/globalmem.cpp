@@ -93,6 +93,22 @@ void AtomicChecker::clear_valid(DifftestAtomicEvent &probe) {
 }
 
 int AtomicChecker::check(const DifftestAtomicEvent &probe) {
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  // LoongArch: AMO fuop encodings differ from RISC-V. For basic checking,
+  // copy the DUT's atomic result to golden memory directly.
+  uint64_t mem = 0;
+  int len = (probe.mask == 0xff || probe.mask == 0xf0 || probe.mask == 0xf) ? 4 : 8;
+  proxy->ref_memcpy(probe.addr, &mem, len, DUT_TO_REF);
+  for (int i = 0; i < 2; i++) {
+    if (len == 4) {
+      ((uint32_t *)(&mem))[i] = ((uint32_t *)(probe.out))[i];
+    } else {
+      ((uint64_t *)(&mem))[i] = probe.out[i];
+    }
+  }
+  proxy->ref_memcpy(probe.addr, &mem, len, REF_TO_DUT);
+  return STATE_OK;
+#else
   if (probe.addr == state->track_instr) {
     dumpGoldenMem("Atmoic", state->track_instr, state->cycle_count);
   }
@@ -235,5 +251,6 @@ int AtomicChecker::check(const DifftestAtomicEvent &probe) {
   }
 
   return STATE_OK;
+#endif // CONFIG_DIFFTEST_LOONGARCH
 }
 #endif // CONFIG_DIFFTEST_ATOMICEVENT

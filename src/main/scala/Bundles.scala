@@ -58,14 +58,12 @@ class ArchEvent extends DifftestBaseBundle with HasValid {
   val exceptionPC = UInt(64.W)
   val exceptionInst = UInt(32.W)
   val hasNMI = Bool()
-  val virtualInterruptIsHvictlInject = Bool()
-  val irToHS = Bool()
-  val irToVS = Bool()
+  // LoongArch: removed virtualInterruptIsHvictlInject, irToHS, irToVS (RISC-V only)
 }
 
 class InstrCommit(val numPhyRegs: Int = 32) extends DifftestBaseBundle with HasValid {
   val skip = Bool()
-  val isRVC = Bool()
+  // LoongArch: isRVC removed (no compressed instructions)
   val rfwen = Bool()
   val fpwen = Bool()
   val vecwen = Bool()
@@ -105,33 +103,49 @@ class TrapEvent extends DifftestBaseBundle {
   val hasTrap = Bool()
   val cycleCnt = UInt(64.W)
   val instrCnt = UInt(64.W)
-  val hasWFI = Bool()
+  val hasIdle = Bool()
 
   val code = UInt(64.W)
   val pc = UInt(64.W)
 
-  override def needUpdate: Option[Bool] = Some(hasTrap || hasWFI)
+  override def needUpdate: Option[Bool] = Some(hasTrap || hasIdle)
 }
 
+// LoongArch CSR state — 27 fields matching the RTL probe and la_csr_state_t
 class CSRState extends DifftestBaseBundle {
-  val privilegeMode = UInt(64.W)
-  val mstatus = UInt(64.W)
-  val sstatus = UInt(64.W)
-  val mepc = UInt(64.W)
-  val sepc = UInt(64.W)
-  val mtval = UInt(64.W)
-  val stval = UInt(64.W)
-  val mtvec = UInt(64.W)
-  val stvec = UInt(64.W)
-  val mcause = UInt(64.W)
-  val scause = UInt(64.W)
-  val satp = UInt(64.W)
-  val mip = UInt(64.W)
-  val mie = UInt(64.W)
-  val mscratch = UInt(64.W)
-  val sscratch = UInt(64.W)
-  val mideleg = UInt(64.W)
-  val medeleg = UInt(64.W)
+  val crmd      = UInt(64.W)
+  val prmd      = UInt(64.W)
+  val euen      = UInt(64.W)
+  val ecfg      = UInt(64.W)
+  val estat     = UInt(64.W)
+  val era       = UInt(64.W)
+  val badv      = UInt(64.W)
+  val eentry    = UInt(64.W)
+  val tlbidx    = UInt(64.W)
+  val tlbehi    = UInt(64.W)
+  val tlbelo0   = UInt(64.W)
+  val tlbelo1   = UInt(64.W)
+  val asid      = UInt(64.W)
+  val pgdl      = UInt(64.W)
+  val pgdh      = UInt(64.W)
+  val save0     = UInt(64.W)
+  val save1     = UInt(64.W)
+  val save2     = UInt(64.W)
+  val save3     = UInt(64.W)
+  val save4     = UInt(64.W)
+  val save5     = UInt(64.W)
+  val save6     = UInt(64.W)
+  val save7     = UInt(64.W)
+  val tid       = UInt(64.W)
+  val tcfg      = UInt(64.W)
+  val tval      = UInt(64.W)
+  val ticlr     = UInt(64.W)
+  val llbctl    = UInt(64.W)
+  val tlbrentry = UInt(64.W)
+  val dmw0      = UInt(64.W)
+  val dmw1      = UInt(64.W)
+  val dmw2      = UInt(64.W)
+  val dmw3      = UInt(64.W)
 
   def toSeq: Seq[UInt] = getElements.map(_.asUInt)
   def names: Seq[String] = elements.keys.toSeq
@@ -199,15 +213,19 @@ class ArchRegState(val numRegs: Int) extends DifftestBaseBundle {
 
 class ArchIntRegState extends ArchRegState(32) {
   def names: Seq[String] = Seq(
-    "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2",
-    "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6",
+    "r0",  "ra",  "tp",  "sp",  "a0",  "a1",  "a2",  "a3",
+    "a4",  "a5",  "a6",  "a7",  "t0",  "t1",  "t2",  "t3",
+    "t4",  "t5",  "t6",  "t7",  "t8",  "x",   "fp",  "s0",
+    "s1",  "s2",  "s3",  "s4",  "s5",  "s6",  "s7",  "s8",
   )
 }
 
 class ArchFpRegState extends ArchIntRegState {
   override def names: Seq[String] = Seq(
-    "ft0", "ft1", "ft2", "ft3", "ft4", "ft5", "ft6", "ft7", "fs0", "fs1", "fa0", "fa1", "fa2", "fa3", "fa4", "fa5",
-    "fa6", "fa7", "fs2", "fs3", "fs4", "fs5", "fs6", "fs7", "fs8", "fs9", "fs10", "fs11", "ft8", "ft9", "ft10", "ft11",
+    "f0",  "f1",  "f2",  "f3",  "f4",  "f5",  "f6",  "f7",
+    "f8",  "f9",  "f10", "f11", "f12", "f13", "f14", "f15",
+    "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23",
+    "f24", "f25", "f26", "f27", "f28", "f29", "f30", "f31",
   )
 }
 
@@ -228,8 +246,9 @@ class VecCSRState extends DifftestBaseBundle {
   val vlenb = UInt(64.W)
 }
 
+// LoongArch: fcsr0 is 32-bit (fcc + frm + fp flags)
 class FpCSRState extends DifftestBaseBundle {
-  val fcsr = UInt(64.W)
+  val fcsr0 = UInt(32.W)
 }
 
 class SbufferEvent extends DifftestBaseBundle with HasValid {
@@ -250,8 +269,7 @@ class StoreEvent extends DifftestBaseBundle with HasValid {
   val highData = UInt(64.W)
   val mask = UInt(16.W)
   val wLine = Bool()
-  val vecNeedSplit = Bool()
-  val eew = UInt(8.W)
+  // LoongArch: vecNeedSplit and eew removed (RISC-V vector specific)
   val offset = UInt(16.W)
   val pc = UInt(64.W)
   val robidx = UInt(10.W)

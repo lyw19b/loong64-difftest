@@ -148,6 +148,14 @@ RefProxy::~RefProxy() {
 }
 
 void RefProxy::regcpy(const DiffTestRegState *regs, uint64_t pc) {
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  // LoongArch: state.xrf and state.frf are la_arch_*_reg_t with value[32]
+  memcpy(&state.xrf, regs->xrf.value, sizeof(state.xrf));
+  memcpy(&state.frf, regs->frf.value, sizeof(state.frf));
+  // la_csr_state_t is 27 uint64_t — must match DUT buffer layout
+  memcpy(&state.csr, &regs->csr, sizeof(state.csr));
+  state.pc = pc;
+#else
   memcpy(&state.xrf, regs->xrf.value, sizeof(state.xrf));
 #ifdef CONFIG_DIFFTEST_ARCHFPREGSTATE
   memcpy(&state.frf, regs->frf.value, sizeof(state.frf));
@@ -169,12 +177,20 @@ void RefProxy::regcpy(const DiffTestRegState *regs, uint64_t pc) {
 #ifdef CONFIG_DIFFTEST_TRIGGERCSRSTATE
   memcpy(&state.triggercsr, &regs->triggercsr, sizeof(state.triggercsr));
 #endif //CONFIG_DIFFTEST_TRIGGERCSRSTATE
+#endif // CONFIG_DIFFTEST_LOONGARCH
   ref_regcpy(&state, DUT_TO_REF, false);
 };
 
 int RefProxy::compare(DiffTestState *dut) {
 #define PROXY_COMPARE(field) memcmp(&(dut->regs.field), &(state.field), sizeof(state.field))
 
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  const int results[] = {
+    PROXY_COMPARE(xrf),
+    PROXY_COMPARE(frf),
+    PROXY_COMPARE(csr)
+  };
+#else
   const int results[] = {PROXY_COMPARE(xrf),
 #ifdef CONFIG_DIFFTEST_ARCHFPREGSTATE
                          PROXY_COMPARE(frf),
@@ -195,8 +211,8 @@ int RefProxy::compare(DiffTestState *dut) {
                          PROXY_COMPARE(triggercsr),
 #endif // CONFIG_DIFFTEST_TRIGGERCSRSTATE
                          PROXY_COMPARE(csr)
-
   };
+#endif // CONFIG_DIFFTEST_LOONGARCH
   for (int i = 0; i < sizeof(results) / sizeof(int); i++) {
     if (results[i]) {
       // There may be some waive rules for CSRs
@@ -228,10 +244,11 @@ void RefProxy::display(DiffTestState *dut) {
   } while (0);
 
     PROXY_COMPARE_AND_DISPLAY(xrf, regs_name_int)
-#ifdef CONFIG_DIFFTEST_ARCHFPREGSTATE
     PROXY_COMPARE_AND_DISPLAY(frf, regs_name_fp)
-#endif // CONFIG_DIFFTEST_ARCHFPREGSTATE
     PROXY_COMPARE_AND_DISPLAY(csr, regs_name_csr)
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+    // no additional state categories for LoongArch
+#else
 #ifdef CONFIG_DIFFTEST_HCSRSTATE
     PROXY_COMPARE_AND_DISPLAY(hcsr, regs_name_hcsr)
 #endif // CONFIG_DIFFTEST_HCSRSTATE
@@ -247,6 +264,7 @@ void RefProxy::display(DiffTestState *dut) {
 #ifdef CONFIG_DIFFTEST_TRIGGERCSRSTATE
     PROXY_COMPARE_AND_DISPLAY(triggercsr, regs_name_triggercsr)
 #endif // CONFIG_DIFFTEST_TRIGGERCSRSTATE
+#endif // CONFIG_DIFFTEST_LOONGARCH
   } else {
     ref_reg_display();
   }
@@ -305,7 +323,9 @@ bool RefProxy::do_csr_waive(DiffTestState *dut) {
   } while (0);
 
   bool has_waive = false;
-#ifdef CPU_ROCKET_CHIP
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  // LoongArch CSR waive rules (none for now)
+#elif defined(CPU_ROCKET_CHIP)
   CSR_WAIVE(mtval, encode_vaddr);
   CSR_WAIVE(mtval, sext_vaddr_40bit);
   CSR_WAIVE(stval, encode_vaddr);
@@ -332,3 +352,8 @@ LinkedProxy::LinkedProxy(int coreid, size_t ram_size) : RefProxy(coreid, ram_siz
     assert(0);
   }
 }
+
+#define LOONGARCH_ENV_VARIABLE "LOONGARCH_HOME"
+#define LOONGARCH_SO_FILENAME  "build/la_emu_ref.so"
+LoongArchProxy::LoongArchProxy(int coreid, size_t ram_size)
+    : RefProxy(coreid, ram_size, LOONGARCH_ENV_VARIABLE, LOONGARCH_SO_FILENAME) {}

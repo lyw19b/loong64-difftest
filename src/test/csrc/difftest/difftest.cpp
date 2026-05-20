@@ -497,7 +497,13 @@ inline int Difftest::check_all() {
   // for other insts copy inst content to ref's dummy debug module
   for (int i = 0; i < DIFFTEST_COMMIT_WIDTH; i++) {
     if (DEBUG_MEM_REGION(dut->commit[i].valid, dut->commit[i].pc))
-      debug_mode_copy(dut->commit[i].pc, dut->commit[i].isRVC ? 2 : 4, dut->commit[i].inst);
+      debug_mode_copy(dut->commit[i].pc,
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+                      4,  // LoongArch: all instructions 4 bytes
+#else
+                      dut->commit[i].isRVC ? 2 : 4,
+#endif
+                      dut->commit[i].inst);
   }
 #endif
 

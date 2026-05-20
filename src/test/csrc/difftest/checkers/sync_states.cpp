@@ -16,6 +16,10 @@
 
 #include "checkers.h"
 
+// LoongArch: these checkers use RISC-V-specific probe types and structures.
+// They rely on CONFIG_DIFFTEST_* macros that should not be defined for LoongArch.
+#ifndef CONFIG_DIFFTEST_LOONGARCH
+
 #ifdef CONFIG_DIFFTEST_LRSCEVENT
 bool LrScChecker::get_valid(const DifftestLrScEvent &probe) {
   return probe.valid;
@@ -108,3 +112,5 @@ int CustomMflushpwrChecker::check(const DifftestSyncCustomMflushpwrEvent &probe)
   return STATE_OK;
 }
 #endif // CONFIG_DIFFTEST_SYNCCUSTOMMFLUSHPWREVENT
+
+#endif // !CONFIG_DIFFTEST_LOONGARCH

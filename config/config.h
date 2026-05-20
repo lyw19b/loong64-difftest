@@ -22,6 +22,8 @@
 #if defined(CPU_NUTSHELL)
 #elif defined(CPU_XIANGSHAN)
 #elif defined(CPU_ROCKET_CHIP)
+#elif defined(CPU_LOONGARCH64)
+  #define CONFIG_DIFFTEST_LOONGARCH
 #else
 // This is the default CPU
 #define CPU_NUTSHELL

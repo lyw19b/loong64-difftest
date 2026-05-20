@@ -18,6 +18,24 @@
 #include "dut.h"
 
 enum {
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  // LoongArch64 exception codes (ESTAT.ECODE + ESUBCODE)
+  EXC_INT  = 0,    // hardware interrupt
+  EXC_PIL  = 1,    // page invalid load (TLB)
+  EXC_PIS  = 2,    // page invalid store (TLB)
+  EXC_PIF  = 3,    // page invalid fetch (TLB)
+  EXC_PME  = 4,    // page modify exception
+  EXC_PPI  = 7,    // page privilege illegal
+  EXC_ADEF = 8,    // address error fetch (misaligned)
+  EXC_ADEM = 9,    // address error memory (misaligned)
+  EXC_SYS  = 11,   // syscall
+  EXC_BRK  = 12,   // breakpoint
+  EXC_INE  = 13,   // instruction not exist (illegal)
+  EXC_IPE  = 14,   // instruction privilege error
+  EXC_FPD  = 15,   // FPU disabled
+  EXC_FPE  = 18,   // FPU exception
+  EXC_TLBR = 31,   // TLB refill (not a real exception, handled specially)
+#else
   EX_IAM,       // instruction address misaligned
   EX_IAF,       // instruction address fault
   EX_II,        // illegal instruction
@@ -42,6 +60,7 @@ enum {
   EX_LGPF,      // load guest-page fault, H-extention
   EX_VI,        // virtual instruction, H-extention
   EX_SGPF       // store/amo guest-page fault, H-extention
+#endif
 };
 
 bool ArchEventChecker::get_valid(const DifftestArchEvent &probe) {
@@ -65,6 +84,11 @@ int ArchEventChecker::check(const DifftestArchEvent &probe) {
 
 int ArchEventChecker::do_interrupt(const DifftestArchEvent &probe) {
   state->record_interrupt(probe.exceptionPC, probe.exceptionInst, probe.interrupt);
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  // LoongArch: hasNMI, virtualInterruptIsHvictlInject, irToHS/irToVS removed.
+  // Interrupt number is passed directly (no mcause[63] bit).
+  proxy->raise_intr(probe.interrupt);
+#else
   if (probe.hasNMI) {
     proxy->trigger_nmi(probe.hasNMI);
   } else if (probe.virtualInterruptIsHvictlInject) {
@@ -75,11 +99,29 @@ int ArchEventChecker::do_interrupt(const DifftestArchEvent &probe) {
   intrDeleg.irToVS = probe.irToVS;
   proxy->intr_delegate(intrDeleg);
   proxy->raise_intr(probe.interrupt | (1ULL << 63));
+#endif
   return STATE_OK;
 }
 
 int ArchEventChecker::do_exception(const DifftestArchEvent &probe) {
   state->record_exception(probe.exceptionPC, probe.exceptionInst, probe.exception);
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  // LoongArch: TLB/page fault exceptions use guided_exec with badv
+  if (probe.exception == EXC_PIL || probe.exception == EXC_PIS ||
+      probe.exception == EXC_PIF || probe.exception == EXC_PME ||
+      probe.exception == EXC_PPI) {
+    const auto &regs = get_regs();
+    struct ExecutionGuide guide;
+    guide.force_raise_exception = true;
+    guide.exception_num = probe.exception;
+    guide.mtval = regs.csr.badv;   // LoongArch: badv replaces mtval
+    guide.stval = regs.csr.badv;
+    guide.force_set_jump_target = false;
+    proxy->guided_exec(guide);
+  } else {
+    proxy->ref_exec(1);
+  }
+#else
   if (probe.exception == EX_IPF || probe.exception == EX_LPF || probe.exception == EX_SPF ||
       probe.exception == EX_IGPF || probe.exception == EX_LGPF || probe.exception == EX_SGPF ||
       probe.exception == EX_HWE) {
@@ -104,6 +146,7 @@ int ArchEventChecker::do_exception(const DifftestArchEvent &probe) {
 #endif
     proxy->ref_exec(1);
   }
+#endif // CONFIG_DIFFTEST_LOONGARCH
 
 #ifdef FUZZING
   static uint64_t lastExceptionPC = 0xdeadbeafUL;

@@ -276,7 +276,7 @@ private[difftest] class DiffVecCommitData extends VecCommitData with DifftestBun
 
 class DiffTrapEvent extends TrapEvent with DifftestBundle {
   override val desiredCppName: String = "trap"
-  override def supportsSquashBase: Bool = !hasTrap && !hasWFI
+  override def supportsSquashBase: Bool = !hasTrap && !hasIdle
 }
 
 class DiffCSRState extends CSRState with DifftestBundle {

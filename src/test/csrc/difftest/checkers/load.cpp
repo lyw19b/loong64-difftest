@@ -172,6 +172,27 @@ int LOADCHECKCLASS::do_load_check(const DifftestLoadEvent &probe, bool regWen, u
       uint64_t mask = 0xFFFFFFFFFFFFFFFF;
       int len = 0;
       if (probe.isLoad) {
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+        // LoongArch load opType encodings (RTL-dependent, adjust to match)
+        switch (probe.opType) {
+          case 0:  // ld.b
+          case 4:  // ld.bu
+            len = 1;
+            break;
+          case 1:  // ld.h
+          case 5:  // ld.hu
+            len = 2;
+            break;
+          case 2:  // ld.w
+          case 6:  // ld.wu
+            len = 4;
+            break;
+          case 3:  // ld.d
+            len = 8;
+            break;
+          default: Info("Unknown LoongArch fuOpType: 0x%x\n", probe.opType); return STATE_ERROR;
+        }
+#else
         switch (probe.opType) {
           case 0:  // lb
           case 4:  // lbu
@@ -203,6 +224,7 @@ int LOADCHECKCLASS::do_load_check(const DifftestLoadEvent &probe, bool regWen, u
 
           default: Info("Unknown fuOpType: 0x%x\n", probe.opType); return STATE_ERROR;
         }
+#endif
       } else if (probe.isAtomic) {
         if (probe.opType % 2 == 0) {
           len = 4;

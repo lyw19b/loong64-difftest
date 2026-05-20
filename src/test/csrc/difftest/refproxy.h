@@ -22,6 +22,50 @@
 #include <unistd.h>
 
 /* clang-format off */
+
+// ── Register name arrays ──
+// LoongArch and RISC-V have different ABI names and CSR layouts.
+// Use CONFIG_DIFFTEST_LOONGARCH to select the correct set.
+
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+
+// LoongArch64 integer register ABI names
+static const char *regs_name_int[] = {
+  "r0",  "ra",  "tp",  "sp",  "a0",  "a1",  "a2",  "a3",
+  "a4",  "a5",  "a6",  "a7",  "t0",  "t1",  "t2",  "t3",
+  "t4",  "t5",  "t6",  "t7",  "t8",  "x",   "fp",  "s0",
+  "s1",  "s2",  "s3",  "s4",  "s5",  "s6",  "s7",  "s8"
+};
+
+// Must match la_csr_state_t field order in difftest-ref.h
+static const char *regs_name_csr[] = {
+  "crmd", "prmd", "euen", "ecfg", "estat", "era", "badv", "eentry",
+  "tlbidx", "tlbehi", "tlbelo0", "tlbelo1", "asid", "pgdl", "pgdh",
+  "save0", "save1", "save2", "save3", "save4", "save5", "save6", "save7",
+  "tid", "tcfg", "tval", "ticlr",
+  "llbctl", "tlbrentry", "dmw0", "dmw1", "dmw2", "dmw3"
+};
+
+// LoongArch64 FP register names
+static const char *regs_name_fp[] = {
+  "f0",  "f1",  "f2",  "f3",  "f4",  "f5",  "f6",  "f7",
+  "f8",  "f9",  "f10", "f11", "f12", "f13", "f14", "f15",
+  "f16", "f17", "f18", "f19", "f20", "f21", "f22", "f23",
+  "f24", "f25", "f26", "f27", "f28", "f29", "f30", "f31"
+};
+
+// Dummy arrays for unused RISC-V state categories in LoongArch builds
+static const char *dummy_name[] = { "n/a" };
+
+#define regs_name_hcsr       dummy_name
+#define regs_name_vec        dummy_name
+#define regs_name_vec_csr    dummy_name
+#define regs_name_fp_csr     dummy_name
+#define regs_name_triggercsr dummy_name
+#define debug_regs_name      dummy_name
+
+#else // !CONFIG_DIFFTEST_LOONGARCH — original RISC-V names
+
 static const char *regs_name_int[] = {
   "$0",  "ra",  "sp",   "gp",   "tp",  "t0",  "t1",   "t2",
   "s0",  "s1",  "a0",   "a1",   "a2",  "a3",  "a4",   "a5",
@@ -78,6 +122,8 @@ static const char *regs_name_fp_csr[] = {
 static const char *regs_name_triggercsr[] = {
   "tselect", "tdata1", "tinfo"
 };
+
+#endif // CONFIG_DIFFTEST_LOONGARCH
 
 /* clang-format on */
 
@@ -180,6 +226,10 @@ private:
   template <typename T> T load_function(const char *func_name);
 };
 
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+#include "difftest-ref.h"
+typedef la_ref_state_t ref_state_t;
+#else
 typedef struct __attribute__((packed)) {
   DifftestArchIntRegState xrf;
 #ifdef CONFIG_DIFFTEST_ARCHFPREGSTATE
@@ -203,6 +253,7 @@ typedef struct __attribute__((packed)) {
   DifftestTriggerCSRState triggercsr;
 #endif // CONFIG_DIFFTEST_TRIGGERCSRSTATE
 } ref_state_t;
+#endif // CONFIG_DIFFTEST_LOONGARCH
 
 class RefProxy : public AbstractRefProxy {
 public:
@@ -420,6 +471,12 @@ class LinkedProxy : public RefProxy {
 public:
   LinkedProxy(int coreid, size_t ram_size = 0);
   ~LinkedProxy() {}
+};
+
+class LoongArchProxy : public RefProxy {
+public:
+  LoongArchProxy(int coreid, size_t ram_size = 0);
+  ~LoongArchProxy() {}
 };
 
 struct SyncState {

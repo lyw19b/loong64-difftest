@@ -183,6 +183,8 @@ public:
   static const uint64_t first_commit_limit = 1000;
 #elif defined(CPU_XIANGSHAN)
   static const uint64_t first_commit_limit = 15000;
+#elif defined(CPU_LOONGARCH64)
+  static const uint64_t first_commit_limit = 2000;
 #endif
   static const uint64_t stuck_commit_limit = first_commit_limit * timeout_scale;
 

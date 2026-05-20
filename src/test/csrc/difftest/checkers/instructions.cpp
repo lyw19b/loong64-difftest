@@ -56,7 +56,11 @@ int TimeoutChecker::check(const DifftestTrapEvent &probe) {
   // NOTE: the WFI instruction may cause the CPU to halt for more than `stuck_limit` cycles.
   // We update the `last_commit_cycle` if the CPU has a WFI instruction
   // to allow the CPU to run at most `stuck_limit` cycles after WFI resumes execution.
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  if (probe.hasIdle) {
+#else
   if (probe.hasWFI) {
+#endif
     state->last_commit_cycle = cycleCnt;
   }
 
@@ -76,9 +80,16 @@ int TimeoutChecker::check(const DifftestTrapEvent &probe) {
 }
 
 #define DEBUG_MEM_REGION(v, f) (f <= (DEBUG_MEM_BASE + 0x1000) && f >= DEBUG_MEM_BASE && v)
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+// LoongArch: all instructions are 4 bytes; no trigger/debug CSR encodings
+#define IS_LOAD_STORE(instr)   false
+#define IS_TRIGGERCSR(instr)   false
+#define IS_DEBUGCSR(instr)     false
+#else
 #define IS_LOAD_STORE(instr)   (((instr & 0x7f) == 0x03) || ((instr & 0x7f) == 0x23))
 #define IS_TRIGGERCSR(instr)   (((instr & 0x7f) == 0x73) && ((instr & (0xff0 << 20)) == (0x7a0 << 20)))
 #define IS_DEBUGCSR(instr)     (((instr & 0x7f) == 0x73) && ((instr & (0xffe << 20)) == (0x7b0 << 20))) // 7b0 and 7b1
+#endif
 #ifdef DEBUG_MODE_DIFF
 #define DEBUG_MODE_SKIP(v, f, instr) DEBUG_MEM_REGION(v, f) && (IS_LOAD_STORE(instr) || IS_TRIGGERCSR(instr))
 #else
@@ -142,7 +153,7 @@ int InstrCommitChecker::check(const DifftestInstrCommit &probe) {
     }
   }
 
-#ifdef DEBUG_MODE_DIFF
+#if defined(DEBUG_MODE_DIFF) && !defined(CONFIG_DIFFTEST_LOONGARCH)
   if (spike_valid() && (IS_DEBUGCSR(commit_instr) || IS_TRIGGERCSR(commit_instr))) {
     Info("s0 is %016lx ", dut.regs.xpr[8]);
     Info("pc is %lx %s\n", commit_pc, spike_dasm(commit_instr));
@@ -153,7 +164,13 @@ int InstrCommitChecker::check(const DifftestInstrCommit &probe) {
   // to skip the checking of an instruction, just copy the reg state to reference design
   if (probe.skip || (DEBUG_MODE_SKIP(probe.valid, probe.pc, probe.inst))) {
     // We use the physical register file to get wdata
-    proxy->skip_one(probe.isRVC, (probe.rfwen && probe.wdest != 0), probe.fpwen, probe.vecwen, probe.wdest,
+    proxy->skip_one(
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+                    false,  // LoongArch has no compressed instructions
+#else
+                    probe.isRVC,
+#endif
+                    (probe.rfwen && probe.wdest != 0), probe.fpwen, probe.vecwen, probe.wdest,
                     commit_data);
     return STATE_OK;
   }

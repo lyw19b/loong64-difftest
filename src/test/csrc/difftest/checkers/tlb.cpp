@@ -18,6 +18,10 @@
 #include "golden.h"
 #include "goldenmem.h"
 
+// LoongArch uses a completely different TLB/MMU architecture (TLBEHI/TLBELO
+// based, not Sv39/Sv48 page tables). The RISC-V TLB checker does not apply.
+#ifndef CONFIG_DIFFTEST_LOONGARCH
+
 #define PAGE_SHIFT 12
 #define PAGE_SIZE  (1ul << PAGE_SHIFT)
 #define PAGE_MASK  (PAGE_SIZE - 1)
@@ -235,3 +239,5 @@ int L2TLBChecker::check(const DifftestL2TLBEvent &probe) {
   return STATE_OK;
 }
 #endif // CONFIG_DIFFTEST_L2TLBEVENT
+
+#endif // !CONFIG_DIFFTEST_LOONGARCH
