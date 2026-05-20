@@ -41,13 +41,13 @@
 #endif
 
 // physical memory base address
-#define _PMEM_BASE 0x80000000UL
+#define _PMEM_BASE 0x1c000000UL
 extern uint64_t PMEM_BASE;
 extern uint64_t FIRST_INST_ADDRESS;
 
 // first valid instruction's address, difftest starts from this instruction
 #if defined(CPU_NUTSHELL)
-#define _FIRST_INST_ADDRESS 0x80000000UL
+#define _FIRST_INST_ADDRESS 0x1c000000UL
 #elif defined(CPU_XIANGSHAN) || defined(CPU_ROCKET_CHIP)
 #define _FIRST_INST_ADDRESS 0x10000000UL
 #endif

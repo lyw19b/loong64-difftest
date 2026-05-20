@@ -25,6 +25,11 @@ bool FirstInstrCommitChecker::get_valid(const DifftestInstrCommit &probe) {
 
 void FirstInstrCommitChecker::clear_valid(DifftestInstrCommit &probe) {
   state->has_commit = true;
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  probe.valid = 0;
+#else
+  (void)probe;
+#endif // CONFIG_DIFFTEST_LOONGARCH
 }
 
 int FirstInstrCommitChecker::check(const DifftestInstrCommit &probe) {
@@ -36,7 +41,15 @@ int FirstInstrCommitChecker::check(const DifftestInstrCommit &probe) {
         proxy->mem_init(dest_addr, src, n, DUT_TO_REF);
       },
       true);
-  proxy->regcpy(&get_regs(), FIRST_INST_ADDRESS);
+  const auto &regs = get_regs();
+  proxy->regcpy(&regs, FIRST_INST_ADDRESS);
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  uint64_t wdata = 0;
+  if (probe.rfwen && probe.wdest < 32) {
+    wdata = regs.xrf.value[probe.wdest];
+  }
+  proxy->skip_one(false, probe.rfwen && probe.wdest != 0, probe.fpwen, probe.vecwen, probe.wdest, wdata);
+#endif // CONFIG_DIFFTEST_LOONGARCH
   // Do not reconfig simulator 'proxy->update_config(&nemu_config)' here:
   // If this is main sim thread, simulator has its own initial config
   // If this process is checkpoint wakeuped, simulator's config has already been updated,
@@ -85,6 +98,14 @@ int TimeoutChecker::check(const DifftestTrapEvent &probe) {
 #define IS_LOAD_STORE(instr)   false
 #define IS_TRIGGERCSR(instr)   false
 #define IS_DEBUGCSR(instr)     false
+static inline bool is_loongarch_rdtime_d(uint32_t instr) {
+  return ((instr >> 15) == 0) && (((instr >> 10) & 0x1f) == 0x1a);
+}
+
+static inline uint32_t read_loongarch_inst(uint64_t pc) {
+  uint64_t word = pmem_read(pc & ~0x7UL);
+  return (pc & 0x4) ? (uint32_t)(word >> 32) : (uint32_t)word;
+}
 #else
 #define IS_LOAD_STORE(instr)   (((instr & 0x7f) == 0x03) || ((instr & 0x7f) == 0x23))
 #define IS_TRIGGERCSR(instr)   (((instr & 0x7f) == 0x73) && ((instr & (0xff0 << 20)) == (0x7a0 << 20)))
@@ -108,6 +129,7 @@ void InstrCommitChecker::clear_valid(DifftestInstrCommit &probe) {
 
 int InstrCommitChecker::check(const DifftestInstrCommit &probe) {
   const auto &dut = get_dut_state();
+  uint64_t ref_pc_before = proxy->state.pc;
 
   // store the writeback info to debug array
 #ifdef BASIC_DIFFTEST_ONLY
@@ -174,6 +196,29 @@ int InstrCommitChecker::check(const DifftestInstrCommit &probe) {
                     commit_data);
     return STATE_OK;
   }
+
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  uint64_t ref_pc = proxy->state.pc;
+  uint32_t ref_instr = read_loongarch_inst(ref_pc);
+  if (is_loongarch_rdtime_d(ref_instr) && (probe.pc == ref_pc || probe.pc == ref_pc + 4)) {
+    uint32_t rd = ref_instr & 0x1f;
+    uint32_t rj = (ref_instr >> 5) & 0x1f;
+
+    proxy->sync();
+    proxy->state.pc = ref_pc + 4;
+    if (rd != 0) {
+      proxy->state.xrf.value[rd] = dut.regs.xrf.value[rd];
+    }
+    if (rj != 0) {
+      proxy->state.xrf.value[rj] = dut.regs.xrf.value[rj];
+    }
+    proxy->sync(true);
+
+    if (probe.pc == ref_pc) {
+      return STATE_OK;
+    }
+  }
+#endif // CONFIG_DIFFTEST_LOONGARCH
 
   // Default: single step exec
   // when there's a fused instruction, let proxy execute more instructions.

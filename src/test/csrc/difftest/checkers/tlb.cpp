@@ -240,4 +240,32 @@ int L2TLBChecker::check(const DifftestL2TLBEvent &probe) {
 }
 #endif // CONFIG_DIFFTEST_L2TLBEVENT
 
-#endif // !CONFIG_DIFFTEST_LOONGARCH
+#else // CONFIG_DIFFTEST_LOONGARCH
+
+#ifdef CONFIG_DIFFTEST_L1TLBEVENT
+bool L1TLBChecker::get_valid(const DifftestL1TLBEvent &probe) {
+  return probe.valid;
+}
+void L1TLBChecker::clear_valid(DifftestL1TLBEvent &probe) {
+  probe.valid = 0;
+}
+int L1TLBChecker::check(const DifftestL1TLBEvent &probe) {
+  (void)probe;
+  return STATE_OK;
+}
+#endif // CONFIG_DIFFTEST_L1TLBEVENT
+
+#ifdef CONFIG_DIFFTEST_L2TLBEVENT
+bool L2TLBChecker::get_valid(const DifftestL2TLBEvent &probe) {
+  return probe.valid;
+}
+void L2TLBChecker::clear_valid(DifftestL2TLBEvent &probe) {
+  probe.valid = 0;
+}
+int L2TLBChecker::check(const DifftestL2TLBEvent &probe) {
+  (void)probe;
+  return STATE_OK;
+}
+#endif // CONFIG_DIFFTEST_L2TLBEVENT
+
+#endif // CONFIG_DIFFTEST_LOONGARCH

@@ -249,6 +249,12 @@ CommonArgs parse_args(int argc, const char *argv[]) {
           case 31: args.random_mem = true; continue;
         }
         // fall through
+      case 1:
+        if (optarg && optarg[0] == '+') {
+          continue;
+        }
+        print_help(argv[0]);
+        exit(0);
       default: print_help(argv[0]); exit(0);
       case 's':
         if (std::string(optarg) != "NO_SEED") {

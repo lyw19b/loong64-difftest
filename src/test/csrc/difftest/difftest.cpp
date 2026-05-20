@@ -56,6 +56,17 @@ static void difftest_register_exit_handlers() {
   std::signal(SIGBUS, difftest_signal_handler);
 }
 
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+static inline bool difftest_is_loongarch_rdtime_d(uint32_t instr) {
+  return ((instr >> 15) == 0) && (((instr >> 10) & 0x1f) == 0x1a);
+}
+
+static inline uint32_t difftest_read_loongarch_inst(uint64_t pc) {
+  uint64_t word = pmem_read(pc & ~0x7UL);
+  return (pc & 0x4) ? (uint32_t)(word >> 32) : (uint32_t)word;
+}
+#endif // CONFIG_DIFFTEST_LOONGARCH
+
 int difftest_init(bool enabled, size_t ramsize) {
 #ifdef CONFIG_DIFFTEST_PERFCNT
   difftest_perfcnt_init();
@@ -519,7 +530,14 @@ inline int Difftest::check_all() {
       dut_commit_batch_pc = dut->commit[0].pc;
       ref_commit_batch_pc = proxy->state.pc;
       if (dut_commit_batch_pc != ref_commit_batch_pc) {
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+        uint32_t ref_instr = difftest_read_loongarch_inst(ref_commit_batch_pc);
+        if (!(difftest_is_loongarch_rdtime_d(ref_instr) && (dut_commit_batch_pc == ref_commit_batch_pc + 4))) {
+          pc_mismatch = true;
+        }
+#else
         pc_mismatch = true;
+#endif // CONFIG_DIFFTEST_LOONGARCH
       }
     }
 #endif
@@ -631,7 +649,11 @@ void Difftest::display() {
   Info("\n==============  REF Regs  ==============\n");
   fflush(stdout);
   proxy->ref_reg_display();
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  Info("crmd: 0x%lx\n", dut->regs.csr.crmd);
+#else
   Info("privilegeMode: %lu\n", dut->regs.csr.privilegeMode);
+#endif // CONFIG_DIFFTEST_LOONGARCH
 
   // show different register values
   proxy->display(dut);

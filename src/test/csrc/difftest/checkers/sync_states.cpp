@@ -113,4 +113,71 @@ int CustomMflushpwrChecker::check(const DifftestSyncCustomMflushpwrEvent &probe)
 }
 #endif // CONFIG_DIFFTEST_SYNCCUSTOMMFLUSHPWREVENT
 
-#endif // !CONFIG_DIFFTEST_LOONGARCH
+#else // CONFIG_DIFFTEST_LOONGARCH
+
+#ifdef CONFIG_DIFFTEST_LRSCEVENT
+bool LrScChecker::get_valid(const DifftestLrScEvent &probe) {
+  return probe.valid;
+}
+void LrScChecker::clear_valid(DifftestLrScEvent &probe) {
+  probe.valid = 0;
+}
+int LrScChecker::check(const DifftestLrScEvent &probe) {
+  (void)probe;
+  return STATE_OK;
+}
+#endif // CONFIG_DIFFTEST_LRSCEVENT
+
+#ifdef CONFIG_DIFFTEST_NONREGINTERRUPTPENDINGEVENT
+bool NonRegInterruptPendingChecker::get_valid(const DifftestNonRegInterruptPendingEvent &probe) {
+  return probe.valid;
+}
+void NonRegInterruptPendingChecker::clear_valid(DifftestNonRegInterruptPendingEvent &probe) {
+  probe.valid = 0;
+}
+int NonRegInterruptPendingChecker::check(const DifftestNonRegInterruptPendingEvent &probe) {
+  (void)probe;
+  return STATE_OK;
+}
+#endif // CONFIG_DIFFTEST_NONREGINTERRUPTPENDINGEVENT
+
+#ifdef CONFIG_DIFFTEST_SYNCAIAEVENT
+bool AiaChecker::get_valid(const DifftestSyncAIAEvent &probe) {
+  return probe.valid;
+}
+void AiaChecker::clear_valid(DifftestSyncAIAEvent &probe) {
+  probe.valid = 0;
+}
+int AiaChecker::check(const DifftestSyncAIAEvent &probe) {
+  (void)probe;
+  return STATE_OK;
+}
+#endif // CONFIG_DIFFTEST_SYNCAIAEVENT
+
+#ifdef CONFIG_DIFFTEST_MHPMEVENTOVERFLOWEVENT
+bool MhpmeventOverflowChecker::get_valid(const DifftestMhpmeventOverflowEvent &probe) {
+  return probe.valid;
+}
+void MhpmeventOverflowChecker::clear_valid(DifftestMhpmeventOverflowEvent &probe) {
+  probe.valid = 0;
+}
+int MhpmeventOverflowChecker::check(const DifftestMhpmeventOverflowEvent &probe) {
+  (void)probe;
+  return STATE_OK;
+}
+#endif // CONFIG_DIFFTEST_MHPMEVENTOVERFLOWEVENT
+
+#ifdef CONFIG_DIFFTEST_SYNCCUSTOMMFLUSHPWREVENT
+bool CustomMflushpwrChecker::get_valid(const DifftestSyncCustomMflushpwrEvent &probe) {
+  return probe.valid;
+}
+void CustomMflushpwrChecker::clear_valid(DifftestSyncCustomMflushpwrEvent &probe) {
+  probe.valid = 0;
+}
+int CustomMflushpwrChecker::check(const DifftestSyncCustomMflushpwrEvent &probe) {
+  (void)probe;
+  return STATE_OK;
+}
+#endif // CONFIG_DIFFTEST_SYNCCUSTOMMFLUSHPWREVENT
+
+#endif // CONFIG_DIFFTEST_LOONGARCH

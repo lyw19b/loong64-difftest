@@ -15,7 +15,7 @@
 # See the Mulan PSL v2 for more details.
 #***************************************************************************************
 
-NOOP_HOME  ?= $(abspath .)
+NOOP_HOME  := $(abspath .)
 export NOOP_HOME
 
 SIM_TOP    ?= SimTop
@@ -140,6 +140,28 @@ SIM_VSRC     += $(shell find $(FPGA_SIM_VSRC_DIR) -name "*.v" -or -name "*.sv")
 ifneq ($(ASYNC_CLK_2N), )
 SIM_VFLAGS   += +define+ASYNC_CLK_2N=$(ASYNC_CLK_2N)
 endif
+endif
+
+# SwiftCore native DiffTest integration.
+SWIFTCORE_REPO_ROOT ?= $(abspath ../..)
+SWIFTCORE_IMAGE     ?= $(SWIFTCORE_REPO_ROOT)/verify/apps/coremark/coremark.bin
+SWIFTCORE_RAM_HEX   ?= $(SWIFTCORE_REPO_ROOT)/build/coremark.ram.hex
+SWIFTCORE_REF_SO    ?= $(SWIFTCORE_REPO_ROOT)/verify/loong64-emu/build/la_emu_ref.so
+SWIFTCORE_MAX_CYCLES ?= 50000000
+SWIFTCORE_MAX_INSTR  ?=
+SWIFTCORE_RAM_SIZE   ?= 768MB
+SWIFTCORE_DUMP_COMMIT_TRACE ?= 0
+
+ifeq ($(SWIFTCORE),1)
+SWIFTCORE_RTL_SRCS := $(shell awk '/^RTL_SRCS :=/{flag=1; next} /^$$/{flag=0} flag {gsub(/\\/, ""); gsub(/^[ \t]+|[ \t]+$$/, ""); if ($$0 != "") print}' $(SWIFTCORE_REPO_ROOT)/Makefile)
+SIM_VSRC      += $(addprefix $(SWIFTCORE_REPO_ROOT)/,$(SWIFTCORE_RTL_SRCS))
+RTL_INCLUDE   += $(RTL_DIR)
+SIM_VFLAGS    += +define+CONFIG_DIFF -Wno-CASEINCOMPLETE
+SIM_CXXFLAGS  += -DCONFIG_DIFFTEST_LOONGARCH
+WITH_CHISELDB = 0
+WITH_CONSTANTIN = 0
+IMAGE_GZ_COMPRESS = 0
+NO_ZSTD_COMPRESSION = 1
 endif
 
 # Third-party RTL include files
@@ -318,6 +340,28 @@ include libso.mk
 include fpga.mk
 include pdb.mk
 
+swiftcore-simtop: difftest_verilog
+	mkdir -p $(RTL_DIR)
+	cp swiftcore/SimTop.sv $(SIM_TOP_V)
+
+swiftcore-ref:
+	$(MAKE) -C $(SWIFTCORE_REPO_ROOT)/verify/loong64-emu DIFF=1
+
+swiftcore-emu: swiftcore-ref swiftcore-simtop
+	$(MAKE) emu SWIFTCORE=1 REF=LoongArch
+
+swiftcore-run-args = -i $(SWIFTCORE_IMAGE) --diff=$(SWIFTCORE_REF_SO) --ram-size=$(SWIFTCORE_RAM_SIZE) -C $(SWIFTCORE_MAX_CYCLES)
+ifneq ($(SWIFTCORE_MAX_INSTR),)
+swiftcore-run-args += -I $(SWIFTCORE_MAX_INSTR)
+endif
+ifeq ($(SWIFTCORE_DUMP_COMMIT_TRACE),1)
+swiftcore-run-args += --dump-commit-trace
+endif
+swiftcore-run-args += +RAM_HEX=$(SWIFTCORE_RAM_HEX)
+
+swiftcore-run: swiftcore-emu
+	$(BUILD_DIR)/emu $(swiftcore-run-args)
+
 clean: vcs-clean pldm-clean fpga-clean
 	rm -rf $(BUILD_DIR)
 
@@ -336,4 +380,4 @@ else
 	@echo "Please run \"pip install --user clang-format==$(CLANG_FORMAT_VER)\", then set PATH manually"
 endif
 
-.PHONY: sim-verilog emu difftest_verilog clean format scala-format clang-format
+.PHONY: sim-verilog emu difftest_verilog swiftcore-simtop swiftcore-ref swiftcore-emu swiftcore-run clean format scala-format clang-format

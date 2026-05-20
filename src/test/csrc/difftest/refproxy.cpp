@@ -277,8 +277,7 @@ void RefProxy::flash_init(const uint8_t *flash_base, size_t size, const char *fl
     // This API is deprecated because flash_bin may be an empty pointer
     load_flash_bin(flash_bin, size);
   } else {
-    std::cout << "Require load_flash_bin or load_flash_bin_v2 to initialize the flash" << std::endl;
-    assert(0);
+    Info("REF does not provide flash init API, skip flash initialization.\n");
   }
 }
 

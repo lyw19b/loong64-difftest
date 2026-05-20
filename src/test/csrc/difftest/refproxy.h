@@ -274,11 +274,20 @@ public:
 
 #ifdef CONFIG_DIFFTEST_ARCHVECREGSTATE
   inline uint64_t *arch_vecreg(uint8_t src) {
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+    static uint64_t dummy_vrf[64] = {0};
+    return dummy_vrf + src;
+#else
     return state.vrf.value + src;
+#endif // CONFIG_DIFFTEST_LOONGARCH
   }
 #endif // CONFIG_DIFFTEST_ARCHVECREGSTATE
   inline void sync(bool is_from_dut = false) {
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+    ref_regcpy(&state, is_from_dut, false);
+#else
     ref_regcpy(&state.xrf, is_from_dut, is_from_dut);
+#endif // CONFIG_DIFFTEST_LOONGARCH
   }
 
   void regcpy(const DiffTestRegState *regs, uint64_t pc);

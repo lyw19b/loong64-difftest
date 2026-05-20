@@ -40,6 +40,25 @@ int StoreRecorder::check(const DifftestStoreEvent &probe) {
   auto highData = probe.highData;
   auto mask = probe.mask;
   auto offset = probe.offset;
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  auto pc = probe.pc;
+  auto robIdx = probe.robidx;
+
+  DiffState::StoreCommit storeCommit = {probe.valid,
+                                        probe.addr,
+                                        lowData,
+                                        static_cast<uint8_t>(probe.mask & 0xFF),
+                                        pc,
+                                        robIdx
+#ifdef CONFIG_DIFFTEST_SQUASH
+                                        ,
+                                        probe.stamp
+#endif // CONFIG_DIFFTEST_SQUASH
+  };
+  state->store_event_queue.push(storeCommit);
+
+  return STATE_OK;
+#else
   auto eew = probe.eew;
   auto pc = probe.pc;
   auto robIdx = probe.robidx;
@@ -159,6 +178,7 @@ int StoreRecorder::check(const DifftestStoreEvent &probe) {
   }
 
   return STATE_OK;
+#endif // CONFIG_DIFFTEST_LOONGARCH
 }
 
 int StoreChecker::check() {
