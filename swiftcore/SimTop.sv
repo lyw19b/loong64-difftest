@@ -56,12 +56,6 @@ module SimTop #(
   wire                         axi_r_last;
   wire  [                 7:0] ext_interrupt;
   wire                         pad_cpu_rst_b;
-  wire                         req;
-  wire                         we;
-  wire  [  AXI_ADDR_WIDTH-1:0] addr;
-  wire  [AXI_DATA_WIDTH/8-1:0] be;
-  wire  [  AXI_DATA_WIDTH-1:0] rdata;
-  wire  [  AXI_DATA_WIDTH-1:0] wdata;
 
   assign pad_cpu_rst_b            = ~reset;
   assign ext_interrupt            = 8'b0;
@@ -121,69 +115,42 @@ module SimTop #(
       .biu_pad_wvalid (axi_w_valid)
   );
 
-  axi_mem_if #(
-      .AXI_ID_WIDTH  (AXI_ID_WIDTH),
-      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
-      .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
-      .AXI_USER_WIDTH(AXI_USER_WIDTH)
-  ) u_mem_if (
-      .clk_i   (clock),
-      .rst_ni  (~reset),
-      .aw_valid(axi_aw_valid),
-      .aw_ready(axi_aw_ready),
-      .aw_addr (axi_aw_addr),
-      .aw_id   (axi_aw_id),
-      .aw_len  (axi_aw_len),
-      .aw_size (axi_aw_size),
-      .aw_burst(axi_aw_burst),
-      .aw_cache(axi_aw_cache),
-      .aw_prot (axi_aw_prot),
-      .w_valid (axi_w_valid),
-      .w_ready (axi_w_ready),
-      .w_data  (axi_w_data),
-      .w_strb  (axi_w_strb),
-      .w_last  (axi_w_last),
-      .b_valid (axi_b_valid),
-      .b_ready (axi_b_ready),
-      .b_id    (axi_b_id),
-      .b_resp  (axi_b_resp),
-      .ar_valid(axi_ar_valid),
-      .ar_ready(axi_ar_ready),
-      .ar_addr (axi_ar_addr),
-      .ar_id   (axi_ar_id),
-      .ar_len  (axi_ar_len),
-      .ar_size (axi_ar_size),
-      .ar_burst(axi_ar_burst),
-      .ar_cache(axi_ar_cache),
-      .ar_prot (axi_ar_prot),
-      .r_valid (axi_r_valid),
-      .r_ready (axi_r_ready),
-      .r_data  (axi_r_data),
-      .r_id    (axi_r_id),
-      .r_resp  (axi_r_resp),
-      .r_last  (axi_r_last),
-      .req_o   (req),
-      .we_o    (we),
-      .addr_o  (addr),
-      .be_o    (be),
-      .data_o  (wdata),
-      .data_i  (rdata)
-  );
-
-  slave_ram #(
-      .AXI_ID_WIDTH  (AXI_ID_WIDTH),
-      .AXI_ADDR_WIDTH(AXI_ADDR_WIDTH),
-      .AXI_DATA_WIDTH(AXI_DATA_WIDTH),
-      .AXI_USER_WIDTH(AXI_USER_WIDTH)
-  ) u_sys_ram (
-      .clk   (clock),
-      .reset (reset),
-      .req_i (req),
-      .we_i  (we),
-      .addr_i(addr),
-      .be_i  (be),
-      .data_i(wdata),
-      .data_o(rdata)
+  SwiftCoreDifftestAxiMem u_difftest_axi_mem (
+      .clock      (clock),
+      .reset      (reset),
+      .io_aw_valid(axi_aw_valid),
+      .io_aw_ready(axi_aw_ready),
+      .io_aw_addr (axi_aw_addr),
+      .io_aw_id   (axi_aw_id),
+      .io_aw_len  (axi_aw_len),
+      .io_aw_size (axi_aw_size),
+      .io_aw_burst(axi_aw_burst),
+      .io_aw_cache(axi_aw_cache),
+      .io_aw_prot (axi_aw_prot),
+      .io_w_valid (axi_w_valid),
+      .io_w_ready (axi_w_ready),
+      .io_w_data  (axi_w_data),
+      .io_w_strb  (axi_w_strb),
+      .io_w_last  (axi_w_last),
+      .io_b_valid (axi_b_valid),
+      .io_b_ready (axi_b_ready),
+      .io_b_id    (axi_b_id),
+      .io_b_resp  (axi_b_resp),
+      .io_ar_valid(axi_ar_valid),
+      .io_ar_ready(axi_ar_ready),
+      .io_ar_addr (axi_ar_addr),
+      .io_ar_id   (axi_ar_id),
+      .io_ar_len  (axi_ar_len),
+      .io_ar_size (axi_ar_size),
+      .io_ar_burst(axi_ar_burst),
+      .io_ar_cache(axi_ar_cache),
+      .io_ar_prot (axi_ar_prot),
+      .io_r_valid (axi_r_valid),
+      .io_r_ready (axi_r_ready),
+      .io_r_data  (axi_r_data),
+      .io_r_id    (axi_r_id),
+      .io_r_resp  (axi_r_resp),
+      .io_r_last  (axi_r_last)
   );
 
 endmodule

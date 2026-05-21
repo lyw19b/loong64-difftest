@@ -94,13 +94,14 @@ int TimeoutChecker::check(const DifftestTrapEvent &probe) {
 
 #define DEBUG_MEM_REGION(v, f) (f <= (DEBUG_MEM_BASE + 0x1000) && f >= DEBUG_MEM_BASE && v)
 #ifdef CONFIG_DIFFTEST_LOONGARCH
-// LoongArch: all instructions are 4 bytes; no trigger/debug CSR encodings
+// LoongArch: all instructions are 4 bytes; use RDTIME as trigger CSR class.
 #define IS_LOAD_STORE(instr)   false
-#define IS_TRIGGERCSR(instr)   false
 #define IS_DEBUGCSR(instr)     false
-static inline bool is_loongarch_rdtime_d(uint32_t instr) {
-  return ((instr >> 15) == 0) && (((instr >> 10) & 0x1f) == 0x1a);
+static inline bool is_loongarch_rdtime(uint32_t instr) {
+  const uint32_t op = (instr >> 10) & 0x1f;
+  return ((instr >> 15) == 0) && (op >= 0x18) && (op <= 0x1a);
 }
+#define IS_TRIGGERCSR(instr)   is_loongarch_rdtime(instr)
 
 static inline uint32_t read_loongarch_inst(uint64_t pc) {
   uint64_t word = pmem_read(pc & ~0x7UL);
@@ -200,7 +201,7 @@ int InstrCommitChecker::check(const DifftestInstrCommit &probe) {
 #ifdef CONFIG_DIFFTEST_LOONGARCH
   uint64_t ref_pc = proxy->state.pc;
   uint32_t ref_instr = read_loongarch_inst(ref_pc);
-  if (is_loongarch_rdtime_d(ref_instr) && (probe.pc == ref_pc || probe.pc == ref_pc + 4)) {
+  if (is_loongarch_rdtime(ref_instr) && (probe.pc == ref_pc || probe.pc == ref_pc + 4)) {
     uint32_t rd = ref_instr & 0x1f;
     uint32_t rj = (ref_instr >> 5) & 0x1f;
 

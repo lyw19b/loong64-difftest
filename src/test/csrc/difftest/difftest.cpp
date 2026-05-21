@@ -57,8 +57,9 @@ static void difftest_register_exit_handlers() {
 }
 
 #ifdef CONFIG_DIFFTEST_LOONGARCH
-static inline bool difftest_is_loongarch_rdtime_d(uint32_t instr) {
-  return ((instr >> 15) == 0) && (((instr >> 10) & 0x1f) == 0x1a);
+static inline bool difftest_is_loongarch_rdtime(uint32_t instr) {
+  const uint32_t op = (instr >> 10) & 0x1f;
+  return ((instr >> 15) == 0) && (op >= 0x18) && (op <= 0x1a);
 }
 
 static inline uint32_t difftest_read_loongarch_inst(uint64_t pc) {
@@ -532,7 +533,7 @@ inline int Difftest::check_all() {
       if (dut_commit_batch_pc != ref_commit_batch_pc) {
 #ifdef CONFIG_DIFFTEST_LOONGARCH
         uint32_t ref_instr = difftest_read_loongarch_inst(ref_commit_batch_pc);
-        if (!(difftest_is_loongarch_rdtime_d(ref_instr) && (dut_commit_batch_pc == ref_commit_batch_pc + 4))) {
+        if (!(difftest_is_loongarch_rdtime(ref_instr) && (dut_commit_batch_pc == ref_commit_batch_pc + 4))) {
           pc_mismatch = true;
         }
 #else

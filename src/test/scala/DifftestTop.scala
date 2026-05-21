@@ -19,11 +19,16 @@ package app
 import chisel3._
 import difftest._
 import difftest.util.DifftestProfile
+import loongarch.SwiftCoreDifftestAxiMem
 
 import scala.annotation.tailrec
 
 // Main class to generate difftest modules when design is not written in chisel.
 class DifftestInterfaces extends Module {
+  val swiftcore_axi_mem = Module(new SwiftCoreDifftestAxiMem)
+  val swiftcore_axi_mem_io = IO(chiselTypeOf(swiftcore_axi_mem.io))
+  swiftcore_axi_mem.io <> swiftcore_axi_mem_io
+
   val arch_event = DifftestModule(new DiffArchEvent, dontCare = true)
   val instr_commit = DifftestModule(new DiffInstrCommit(192), dontCare = true)
   val trap_event = DifftestModule(new DiffTrapEvent, dontCare = true)

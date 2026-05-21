@@ -145,7 +145,6 @@ endif
 # SwiftCore native DiffTest integration.
 SWIFTCORE_REPO_ROOT ?= $(abspath ../..)
 SWIFTCORE_IMAGE     ?= $(SWIFTCORE_REPO_ROOT)/verify/apps/coremark/coremark.bin
-SWIFTCORE_RAM_HEX   ?= $(SWIFTCORE_REPO_ROOT)/build/coremark.ram.hex
 SWIFTCORE_REF_SO    ?= $(SWIFTCORE_REPO_ROOT)/verify/loong64-emu/build/la_emu_ref.so
 SWIFTCORE_MAX_CYCLES ?= 50000000
 SWIFTCORE_MAX_INSTR  ?=
@@ -357,7 +356,6 @@ endif
 ifeq ($(SWIFTCORE_DUMP_COMMIT_TRACE),1)
 swiftcore-run-args += --dump-commit-trace
 endif
-swiftcore-run-args += +RAM_HEX=$(SWIFTCORE_RAM_HEX)
 
 swiftcore-run: swiftcore-emu
 	$(BUILD_DIR)/emu $(swiftcore-run-args)
