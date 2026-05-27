@@ -113,6 +113,11 @@ class AXIUART(
   val dlm = RegInit(0.U(8.W))
   val fcr = RegInit(0.U(8.W))
   val txIntrPending = RegInit(false.B)
+  val uartWritePrev = RegInit(false.B)
+  val uartWritePairSuppressed = RegInit(false.B)
+  val uartWritePrevAddr = RegInit(0.U(addrWidth.W))
+  val uartWritePrevStrb = RegInit(0.U((dataWidth / 8).W))
+  val uartWritePrevData = RegInit(0.U(dataWidth.W))
 
   def byteLane(addr: UInt): UInt = addr(log2Ceil(dataWidth / 8) - 1, 0)
 
@@ -168,6 +173,12 @@ class AXIUART(
   val activeWrAddr = Mux(awFire, io.axi.aw_addr, wrAddr)
   val writeDone = io.axi.w_last || wrCnt === wrLen
   val writeByte = selectedWriteByte(io.axi.w_data, io.axi.w_strb)
+  val uartThrWrite = wFire && regOffset(activeWrAddr) === 0.U && !lcr(7)
+  val uartWriteSamePrev = uartWritePrev &&
+    uartWritePrevAddr === activeWrAddr &&
+    uartWritePrevStrb === io.axi.w_strb &&
+    uartWritePrevData === io.axi.w_data
+  val uartPrintEn = uartThrWrite && !(uartWriteSamePrev && !uartWritePairSuppressed)
 
   when(wFire) {
     switch(regOffset(activeWrAddr)) {
@@ -175,7 +186,7 @@ class AXIUART(
         when(lcr(7)) {
           dll := writeByte
         }.otherwise {
-          io.out_valid := true.B
+          io.out_valid := uartPrintEn
           io.out_ch := writeByte
           txIntrPending := true.B
         }
@@ -207,6 +218,18 @@ class AXIUART(
 
   when(rFire && regOffset(rdAddr) === 2.U) {
     txIntrPending := false.B
+  }
+
+  when(uartThrWrite) {
+    when(uartWriteSamePrev && !uartWritePairSuppressed) {
+      uartWritePairSuppressed := true.B
+    }.otherwise {
+      uartWritePrev := true.B
+      uartWritePairSuppressed := false.B
+      uartWritePrevAddr := activeWrAddr
+      uartWritePrevStrb := io.axi.w_strb
+      uartWritePrevData := io.axi.w_data
+    }
   }
 
   switch(state) {

@@ -176,6 +176,9 @@ struct ElfBinaryFile : public ElfBinary {
 
 // Is the file at the given path an Elf file
 bool isElfFile(const char *filename);
+// Select how LoongArch ELF load addresses are normalized before placing
+// sections into simulated memory.
+void setElfLoaderArch(const char *arch);
 // load binary content at `file_name` into ptr. Returns the number of bytes
 // written.
 long readFromElf(void *ptr, const char *file_name, long buf_size);

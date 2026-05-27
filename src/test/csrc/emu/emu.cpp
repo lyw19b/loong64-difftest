@@ -17,6 +17,7 @@
 #include "emu.h"
 #include "compress.h"
 #include "device.h"
+#include "elfloader.h"
 #include "flash.h"
 #include "lightsss.h"
 #include "ram.h"
@@ -108,6 +109,7 @@ Emulator::Emulator(int argc, const char *argv[])
   if (args.ram_size) {
     ram_size = parse_ramsize(args.ram_size);
   }
+  setElfLoaderArch(args.arch);
   // footprints
   if (args.image_as_footprints) {
     if (args.linearized_name) {

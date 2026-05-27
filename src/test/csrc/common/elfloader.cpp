@@ -15,6 +15,101 @@
 
 #include "elfloader.h"
 #include <algorithm>
+#include <cstring>
+
+enum class ElfLoaderArch {
+  Native,
+  LoongArch64,
+  LoongArch32S,
+  LoongArch32R,
+};
+
+static ElfLoaderArch elf_loader_arch = ElfLoaderArch::Native;
+
+void setElfLoaderArch(const char *arch) {
+  if (arch == nullptr || strcmp(arch, "native") == 0 || strcmp(arch, "auto") == 0) {
+    elf_loader_arch = ElfLoaderArch::Native;
+  } else if (strcmp(arch, "loongarch64") == 0) {
+    elf_loader_arch = ElfLoaderArch::LoongArch64;
+  } else if (strcmp(arch, "loongarch32") == 0 || strcmp(arch, "loongarch32s") == 0) {
+    elf_loader_arch = ElfLoaderArch::LoongArch32S;
+  } else if (strcmp(arch, "loongarch32r") == 0) {
+    elf_loader_arch = ElfLoaderArch::LoongArch32R;
+  } else {
+    printf("[ERROR] unsupported ELF loader arch '%s'\n", arch);
+    exit(EINVAL);
+  }
+}
+
+static uint64_t normalizeElfLoadAddr(uint64_t addr) {
+  switch (elf_loader_arch) {
+    case ElfLoaderArch::LoongArch64: return addr & 0xffffffffULL;
+    case ElfLoaderArch::LoongArch32S:
+    case ElfLoaderArch::LoongArch32R: return addr & 0x1fffffffULL;
+    case ElfLoaderArch::Native: return addr;
+  }
+  return addr;
+}
+
+static uint64_t elfAddrToRamOffset(uint64_t addr) {
+  return addr >= PMEM_BASE ? addr - PMEM_BASE : addr;
+}
+
+static bool elfLoaderIsLoongArch() {
+  return elf_loader_arch == ElfLoaderArch::LoongArch64 || elf_loader_arch == ElfLoaderArch::LoongArch32S ||
+         elf_loader_arch == ElfLoaderArch::LoongArch32R;
+}
+
+static void writeWord(void *ptr, uint64_t offset, uint32_t value) {
+  std::memcpy((uint8_t *)ptr + offset, &value, sizeof(value));
+}
+
+static size_t writeLoongArchLi(void *ptr, uint64_t offset, uint32_t rd, uint64_t value) {
+  const uint32_t rj = rd;
+  size_t words = 0;
+
+  if (value == 0) {
+    const uint32_t addi_d_zero = 0x02c00000U | rd;
+    writeWord(ptr, offset + 4 * words++, addi_d_zero);
+    return words * 4;
+  }
+
+  const uint32_t lu12i_w = 0x14000000U | (((value >> 12) & 0xfffffU) << 5) | rd;
+  const uint32_t ori = 0x03800000U | ((value & 0xfffU) << 10) | (rj << 5) | rd;
+  writeWord(ptr, offset + 4 * words++, lu12i_w);
+  if ((value & 0xfffU) != 0) {
+    writeWord(ptr, offset + 4 * words++, ori);
+  }
+
+  if (elf_loader_arch == ElfLoaderArch::LoongArch64 && (value >> 32) != 0) {
+    const uint32_t lu32i_d = 0x16000000U | (((value >> 32) & 0xfffffU) << 5) | rd;
+    const uint32_t lu52i_d = 0x03000000U | (((value >> 52) & 0xfffU) << 10) | (rj << 5) | rd;
+    writeWord(ptr, offset + 4 * words++, lu32i_d);
+    if ((value >> 52) != 0) {
+      writeWord(ptr, offset + 4 * words++, lu52i_d);
+    }
+  }
+
+  return words * 4;
+}
+
+static size_t writeLoongArchJump(void *ptr, uint64_t offset, uint64_t target, uint64_t cmdline_addr) {
+  constexpr uint32_t reg_a0 = 4;
+  constexpr uint32_t reg_a1 = 5;
+  constexpr uint32_t reg_a2 = 6;
+  constexpr uint32_t reg_t0 = 12;
+  size_t bytes = 0;
+
+  bytes += writeLoongArchLi(ptr, offset + bytes, reg_a0, 0);
+  bytes += writeLoongArchLi(ptr, offset + bytes, reg_a1, cmdline_addr);
+  bytes += writeLoongArchLi(ptr, offset + bytes, reg_a2, 0);
+  bytes += writeLoongArchLi(ptr, offset + bytes, reg_t0, target);
+
+  constexpr uint32_t jr_t0 = 0x4c000180U;
+  size_t words = bytes / 4;
+  writeWord(ptr, offset + 4 * words++, jr_t0);
+  return bytes + 4;
+}
 
 void ElfBinary::load() {
   assert(size >= sizeof(Elf64_Ehdr));
@@ -101,30 +196,59 @@ long readFromElf(void *ptr, const char *file_name, long buf_size) {
   }
 
   uint64_t len_written = 0;
-  auto base_addr = elf_file.sections[0].data_dst;
+  auto base_addr = normalizeElfLoadAddr(elf_file.sections[0].data_dst);
+  auto entry_addr = normalizeElfLoadAddr(elf_file.entry);
+  if (entry_addr == 0) {
+    entry_addr = base_addr;
+  }
 
   if (base_addr != PMEM_BASE) {
     printf(
         "The first address in the elf does not match the base of the physical memory.\n"
-        "It is likely that execution leads to unexpected behaviour.\n");
+        "A jump stub will be installed at 0x%lx to enter 0x%lx.\n",
+        PMEM_BASE, entry_addr);
   }
 
   for (auto section: elf_file.sections) {
     auto len = section.data_len + section.zero_len;
-    auto offset = section.data_dst - base_addr;
+    auto load_addr = normalizeElfLoadAddr(section.data_dst);
+    auto offset = elfAddrToRamOffset(load_addr);
 
     if (offset + len > buf_size) {
-      printf("The size (%ld bytes) of the section at address 0x%lx is larger than buf_size!\n", len, section.data_dst);
+      printf("The size (%ld bytes) of the section at address 0x%lx offset 0x%lx is larger than buf_size!\n", len,
+             load_addr, offset);
       return -1;
     }
 
-    printf("Loading %ld bytes at address 0x%lx at offset 0x%lx\n", len, section.data_dst, offset);
+    printf("Loading %ld bytes at address 0x%lx", len, load_addr);
+    if (load_addr != section.data_dst) {
+      printf(" (ELF address 0x%lx)", section.data_dst);
+    }
+    printf(" at offset 0x%lx\n", offset);
     std::memset((uint8_t *)ptr + offset, 0, len);
     std::memcpy((uint8_t *)ptr + offset, section.data_src, section.data_len);
-    len_written += len;
+    len_written = std::max<uint64_t>(len_written, offset + len);
   }
-  // Since we are unpacking the sections, the total amount of bytes is the last
-  // section offset plus its size.
-  auto last_section = elf_file.sections.back();
-  return last_section.data_dst - base_addr + last_section.data_len + last_section.zero_len;
+
+  if (base_addr != PMEM_BASE) {
+    if (!elfLoaderIsLoongArch()) {
+      printf("[ERROR] ELF load address 0x%lx needs a jump stub, but --arch is not a LoongArch mode\n", base_addr);
+      return -1;
+    }
+    const uint64_t cmdline_addr = PMEM_BASE + 0x100;
+    const uint64_t cmdline_offset = elfAddrToRamOffset(cmdline_addr);
+    if (cmdline_offset >= (uint64_t)buf_size) {
+      printf("[ERROR] LoongArch boot cmdline address 0x%lx is outside simulated RAM\n", cmdline_addr);
+      return -1;
+    }
+    *((uint8_t *)ptr + cmdline_offset) = 0;
+
+    auto jump_offset = elfAddrToRamOffset(PMEM_BASE);
+    auto jump_size = writeLoongArchJump(ptr, jump_offset, entry_addr, cmdline_addr);
+    len_written = std::max<uint64_t>(len_written, std::max(jump_offset + jump_size, cmdline_offset + 1));
+    printf("Installed LoongArch jump stub at address 0x%lx offset 0x%lx to 0x%lx with cmdline at 0x%lx (%lu bytes)\n",
+           PMEM_BASE, jump_offset, entry_addr, cmdline_addr, jump_size);
+  }
+
+  return len_written;
 }

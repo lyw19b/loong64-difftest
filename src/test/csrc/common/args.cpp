@@ -69,6 +69,8 @@ static inline void print_help(const char *file) {
   printf("      --sim-run-ahead        let a fork of simulator run ahead of commit for perf analysis\n");
   printf("      --wave-path=FILE       dump waveform to a specified PATH\n");
   printf("      --ram-size=SIZE        simulation memory size, for example 8GB / 128MB\n");
+  printf("      --arch=ARCH            ELF load address mode: loongarch64, loongarch32, loongarch32s, loongarch32r\n");
+  printf("      --isa=ARCH             alias of --arch\n");
   printf("      --cst-file=FILE        load constantin from FILE, stdin, or default init values\n");
   printf("      --enable-fork          enable folking child processes to debug\n");
   printf("      --no-diff              disable differential testing\n");
@@ -113,6 +115,8 @@ CommonArgs parse_args(int argc, const char *argv[]) {
     { "enable-jtag",       0, NULL,  0  },
     { "wave-path",         1, NULL,  0  },
     { "ram-size",          1, NULL,  0  },
+    { "arch",              1, NULL, 'A' },
+    { "isa",               1, NULL, 'A' },
     { "sim-run-ahead",     0, NULL,  0  },
     { "dump-db",           0, NULL,  0  },
     { "dump-select-db",    1, NULL,  0  },
@@ -156,7 +160,7 @@ CommonArgs parse_args(int argc, const char *argv[]) {
   /* clang-format on */
 
   int o;
-  while ((o = getopt_long(argc, const_cast<char *const *>(argv), "-s:C:X:I:T:R:W:D:hi:r:m:b:e:F:", long_options,
+  while ((o = getopt_long(argc, const_cast<char *const *>(argv), "-s:C:X:I:T:R:W:D:A:hi:r:m:b:e:F:", long_options,
                           &long_index)) != -1) {
     switch (o) {
       case 0:
@@ -174,6 +178,8 @@ CommonArgs parse_args(int argc, const char *argv[]) {
           case 8: args.wave_path = optarg; continue;
           case 9: args.ram_size = optarg; continue;
           case 10:
+          case 11: args.arch = optarg; continue;
+          case 12:
 #ifdef ENABLE_RUNHEAD
             args.enable_runahead = true;
 #else
@@ -181,42 +187,42 @@ CommonArgs parse_args(int argc, const char *argv[]) {
 #endif
             continue;
 #ifdef ENABLE_CHISEL_DB
-          case 11: args.dump_db = true; continue;
-          case 12:
+          case 13: args.dump_db = true; continue;
+          case 14:
             args.dump_db = true;
             args.select_db = optarg;
             continue;
 #else
-          case 11:
-          case 12: printf("[WARN] chisel db is not enabled at compile time, ignore --dump-db\n"); continue;
-#endif
           case 13:
+          case 14: printf("[WARN] chisel db is not enabled at compile time, ignore --dump-db\n"); continue;
+#endif
+          case 15:
 #if VM_COVERAGE == 1
             args.dump_coverage = true;
 #else
             printf("[WARN] coverage is not enabled at compile time, ignore --dump-coverage\n");
 #endif // VM_COVERAGE
             continue;
-          case 14: args.enable_ref_trace = true; continue;
-          case 15: args.enable_commit_trace = true; continue;
-          case 16:
+          case 16: args.enable_ref_trace = true; continue;
+          case 17: args.enable_commit_trace = true; continue;
+          case 18:
             args.trace_name = optarg;
             args.trace_is_read = true;
             continue;
-          case 17:
+          case 19:
             args.trace_name = optarg;
             args.trace_is_read = false;
             continue;
-          case 18: args.footprints_name = optarg; continue;
-          case 19: args.image_as_footprints = true; continue;
-          case 20: args.linearized_name = optarg; continue;
-          case 21:
+          case 20: args.footprints_name = optarg; continue;
+          case 21: args.image_as_footprints = true; continue;
+          case 22: args.linearized_name = optarg; continue;
+          case 23:
             args.enable_waveform = true;
             args.enable_waveform_full = true;
             continue;
-          case 22: args.overwrite_nbytes = atoll_strict(optarg, "overwrite_nbytes"); continue;
-          case 23: remote_jtag_port = atoll_strict(optarg, "remote-jtag-port"); continue;
-          case 24:
+          case 24: args.overwrite_nbytes = atoll_strict(optarg, "overwrite_nbytes"); continue;
+          case 25: remote_jtag_port = atoll_strict(optarg, "remote-jtag-port"); continue;
+          case 26:
 #ifdef CONFIG_DIFFTEST_IOTRACE
             extern void set_iotrace_name(char *s);
             set_iotrace_name(optarg);
@@ -224,7 +230,7 @@ CommonArgs parse_args(int argc, const char *argv[]) {
             printf("[WARN] iotrace is not enabled at compile time, ignore --iotrace-name");
 #endif // CONFIG_DIFFTEST_IOTRACE
             continue;
-          case 25:
+          case 27:
 #ifdef WITH_DRAMSIM3
             args.dramsim3_ini = optarg;
             continue;
@@ -233,7 +239,7 @@ CommonArgs parse_args(int argc, const char *argv[]) {
             exit(1);
             break;
 #endif
-          case 26:
+          case 28:
 #ifdef WITH_DRAMSIM3
             args.dramsim3_outdir = optarg;
             continue;
@@ -242,11 +248,11 @@ CommonArgs parse_args(int argc, const char *argv[]) {
             exit(1);
             break;
 #endif
-          case 27: args.overwrite_nbytes_autoset = true; continue;
-          case 28: args.instr_trace = optarg; continue;
-          case 29: args.copy_ram_offset = parse_ramsize(optarg); continue;
-          case 30: args.cst_file = optarg; continue;
-          case 31: args.random_mem = true; continue;
+          case 29: args.overwrite_nbytes_autoset = true; continue;
+          case 30: args.instr_trace = optarg; continue;
+          case 31: args.copy_ram_offset = parse_ramsize(optarg); continue;
+          case 32: args.cst_file = optarg; continue;
+          case 33: args.random_mem = true; continue;
         }
         // fall through
       case 1:
@@ -263,6 +269,7 @@ CommonArgs parse_args(int argc, const char *argv[]) {
         }
         break;
       case 'C': args.max_cycles = atoll_strict(optarg, "max-cycles"); break;
+      case 'A': args.arch = optarg; break;
       case 'X': args.fork_interval = 1000 * atoll_strict(optarg, "fork-interval"); break;
       case 'I': args.max_instr = atoll_strict(optarg, "max-instr"); break;
 #ifdef DEBUG_REFILL

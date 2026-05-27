@@ -49,6 +49,7 @@ struct CommonArgs {
   const char *snapshot_path = nullptr;
   const char *wave_path = nullptr;
   const char *ram_size = nullptr;
+  const char *arch = nullptr;
   const char *cst_file = nullptr;
   const char *flash_bin = nullptr;
   const char *select_db = nullptr;

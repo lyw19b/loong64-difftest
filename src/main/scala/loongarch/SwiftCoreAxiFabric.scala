@@ -122,10 +122,10 @@ class AXICrossBar(
   SwiftCoreAxiBundle.tieOffMaster(io.mem)
   SwiftCoreAxiBundle.tieOffMaster(io.dev)
 
-  val awToMem = AXIAddressDecode.hitAny(io.in.aw_addr, memRanges)
   val awToDev = AXIAddressDecode.hit(io.in.aw_addr, devRange)
-  val arToMem = AXIAddressDecode.hitAny(io.in.ar_addr, memRanges)
   val arToDev = AXIAddressDecode.hit(io.in.ar_addr, devRange)
+  val awToMem = AXIAddressDecode.hitAny(io.in.aw_addr, memRanges) && !awToDev
+  val arToMem = AXIAddressDecode.hitAny(io.in.ar_addr, memRanges) && !arToDev
 
   io.mem.aw_valid := io.in.aw_valid && awToMem
   io.dev.aw_valid := io.in.aw_valid && !awToMem && awToDev
