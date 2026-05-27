@@ -356,9 +356,26 @@ endif
 ifeq ($(SWIFTCORE_DUMP_COMMIT_TRACE),1)
 swiftcore-run-args += --dump-commit-trace
 endif
+ifneq ($(SWIFTCORE_EXTRA_ARGS),)
+swiftcore-run-args += $(SWIFTCORE_EXTRA_ARGS)
+endif
 
 swiftcore-run: swiftcore-emu
 	$(BUILD_DIR)/emu $(swiftcore-run-args)
+
+swiftcore-loong64-dv-mmu:
+	MAX_TIME="$(MAX_TIME)" \
+	TIMEOUT_OK="$(TIMEOUT_OK)" \
+	DIFF_COMMIT_TRACE="$(DIFF_COMMIT_TRACE)" \
+	SEED="$(SEED)" \
+	START_SEED="$(START_SEED)" \
+	ITERATIONS="$(ITERATIONS)" \
+	BATCH_SIZE="$(BATCH_SIZE)" \
+	OUT_DIR="$(OUT_DIR)" \
+	APP_DIR="$(APP_DIR)" \
+	TESTLIST="$(TESTLIST)" \
+	TEST_NAME="$(TEST_NAME)" \
+	./swiftcore/run_loong64_dv_mmu.sh
 
 clean: vcs-clean pldm-clean fpga-clean
 	rm -rf $(BUILD_DIR)
@@ -378,4 +395,4 @@ else
 	@echo "Please run \"pip install --user clang-format==$(CLANG_FORMAT_VER)\", then set PATH manually"
 endif
 
-.PHONY: sim-verilog emu difftest_verilog swiftcore-simtop swiftcore-ref swiftcore-emu swiftcore-run clean format scala-format clang-format
+.PHONY: sim-verilog emu difftest_verilog swiftcore-simtop swiftcore-ref swiftcore-emu swiftcore-run swiftcore-loong64-dv-mmu clean format scala-format clang-format
