@@ -11,7 +11,7 @@ import chisel3.experimental.ExtModule
 import difftest.common.DifftestMem
 import chisel3.util._
 
-private class SwiftCoreUartPrinter extends ExtModule with HasExtModuleInline {
+class SwiftCoreUartPrinter extends ExtModule with HasExtModuleInline {
   val clock = IO(Input(Clock()))
   val valid = IO(Input(Bool()))
   val ch = IO(Input(UInt(8.W)))
