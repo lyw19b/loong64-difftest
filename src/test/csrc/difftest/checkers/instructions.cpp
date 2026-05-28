@@ -101,10 +101,22 @@ static inline bool is_loongarch_rdtime(uint32_t instr) {
   const uint32_t op = (instr >> 10) & 0x1f;
   return ((instr >> 15) == 0) && (op >= 0x18) && (op <= 0x1a);
 }
+
+static inline bool is_loongarch_idle(uint32_t instr) {
+  return (instr & 0xffff8000U) == 0x06488000U;
+}
 #define IS_TRIGGERCSR(instr)   is_loongarch_rdtime(instr)
 
+static inline uint64_t loongarch_pc_to_ram_offset(uint64_t pc) {
+  if ((pc >> 60) == 0x8 || (pc >> 60) == 0x9) {
+    return pc & 0xffffffffULL;
+  }
+  return pc >= PMEM_BASE ? pc - PMEM_BASE : pc;
+}
+
 static inline uint32_t read_loongarch_inst(uint64_t pc) {
-  uint64_t word = pmem_read(pc & ~0x7UL);
+  uint64_t off = loongarch_pc_to_ram_offset(pc);
+  uint64_t word = difftest_ram_read((off & ~0x7UL) / sizeof(uint64_t));
   return (pc & 0x4) ? (uint32_t)(word >> 32) : (uint32_t)word;
 }
 #else
@@ -201,6 +213,16 @@ int InstrCommitChecker::check(const DifftestInstrCommit &probe) {
 #ifdef CONFIG_DIFFTEST_LOONGARCH
   uint64_t ref_pc = proxy->state.pc;
   uint32_t ref_instr = read_loongarch_inst(ref_pc);
+  if (is_loongarch_idle(ref_instr) && (probe.pc == ref_pc || probe.pc == ref_pc + 4)) {
+    proxy->sync();
+    proxy->state.pc = ref_pc + 4;
+    proxy->sync(true);
+
+    if (probe.pc == ref_pc) {
+      return STATE_OK;
+    }
+  }
+
   if (is_loongarch_rdtime(ref_instr) && (probe.pc == ref_pc || probe.pc == ref_pc + 4)) {
     uint32_t rd = ref_instr & 0x1f;
     uint32_t rj = (ref_instr >> 5) & 0x1f;
