@@ -179,7 +179,9 @@ public:
 #else
   static const uint64_t timeout_scale = 1;
 #endif // CONFIG_DIFFTEST_SQUASH
-#if defined(CPU_NUTSHELL) || defined(CPU_ROCKET_CHIP)
+#if defined(DIFFTEST_FIRST_COMMIT_LIMIT)
+  static const uint64_t first_commit_limit = DIFFTEST_FIRST_COMMIT_LIMIT;
+#elif defined(CPU_NUTSHELL) || defined(CPU_ROCKET_CHIP)
   static const uint64_t first_commit_limit = 1000;
 #elif defined(CPU_XIANGSHAN)
   static const uint64_t first_commit_limit = 15000;

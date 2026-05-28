@@ -58,6 +58,10 @@ SIM_CXXFLAGS = -I$(SIM_CSRC_DIR) -I$(SIM_CONFIG_DIR)
 
 SIM_CXXFLAGS += -DNOOP_HOME=\\\"$(NOOP_HOME)\\\"
 
+ifneq ($(SNAPSHOT_INTERVAL),)
+SIM_CXXFLAGS += -DSNAPSHOT_INTERVAL=$(SNAPSHOT_INTERVAL)
+endif
+
 # generated-src
 GEN_CSRC_DIR  = $(BUILD_DIR)/generated-src
 SIM_CXXFILES += $(shell find $(GEN_CSRC_DIR) -name "*.cpp" 2> /dev/null)
@@ -146,6 +150,7 @@ endif
 SWIFTCORE_REPO_ROOT ?= $(abspath ../..)
 SWIFTCORE_IMAGE     ?= $(SWIFTCORE_REPO_ROOT)/verify/apps/coremark/coremark.bin
 SWIFTCORE_REF_SO    ?= $(SWIFTCORE_REPO_ROOT)/verify/loong64-emu/build/la_emu_ref.so
+SWIFTCORE_REF_CORE  ?= swiftcore
 SWIFTCORE_MAX_CYCLES ?= 50000000
 SWIFTCORE_MAX_INSTR  ?=
 SWIFTCORE_RAM_SIZE   ?= 768MB
@@ -344,7 +349,8 @@ swiftcore-simtop: difftest_verilog
 	cp swiftcore/SimTop.sv $(SIM_TOP_V)
 
 swiftcore-ref:
-	$(MAKE) -C $(SWIFTCORE_REPO_ROOT)/verify/loong64-emu DIFF=1
+	$(MAKE) -C $(SWIFTCORE_REPO_ROOT)/verify/loong64-emu clean
+	$(MAKE) -C $(SWIFTCORE_REPO_ROOT)/verify/loong64-emu DIFF=1 CORE=$(SWIFTCORE_REF_CORE)
 
 swiftcore-emu: swiftcore-ref swiftcore-simtop
 	$(MAKE) emu SWIFTCORE=1 REF=LoongArch

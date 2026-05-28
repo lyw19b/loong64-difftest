@@ -323,7 +323,23 @@ bool RefProxy::do_csr_waive(DiffTestState *dut) {
 
   bool has_waive = false;
 #ifdef CONFIG_DIFFTEST_LOONGARCH
-  // LoongArch CSR waive rules (none for now)
+  // TVAL is a DUT-clocked live countdown in SwiftCore. REF only executes at
+  // difftest commit granularity, so DUT is the owner of timer-visible state.
+  bool sync_timer_to_ref = false;
+  if (state.csr.tval != dut->regs.csr.tval) {
+    state.csr.tval = dut->regs.csr.tval;
+    sync_timer_to_ref = true;
+    has_waive = true;
+  }
+  constexpr uint64_t timer_pending = 1ULL << 11;
+  if ((state.csr.estat ^ dut->regs.csr.estat) & timer_pending) {
+    state.csr.estat = (state.csr.estat & ~timer_pending) | (dut->regs.csr.estat & timer_pending);
+    sync_timer_to_ref = true;
+    has_waive = true;
+  }
+  if (sync_timer_to_ref) {
+    ref_csrcpy(&state, DUT_TO_REF);
+  }
 #elif defined(CPU_ROCKET_CHIP)
   CSR_WAIVE(mtval, encode_vaddr);
   CSR_WAIVE(mtval, sext_vaddr_40bit);

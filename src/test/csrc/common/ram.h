@@ -109,6 +109,7 @@ public:
   SimMemory(uint64_t n_bytes) : memory_size(n_bytes) {}
   virtual ~SimMemory();
   virtual uint64_t get_img_size() = 0;
+  virtual void mark_loaded_size(uint64_t n_bytes) {}
   uint64_t get_size() {
     return memory_size;
   }
@@ -138,20 +139,23 @@ private:
 public:
   MmapMemory(const char *image, uint64_t n_bytes, bool random_mem, uint32_t seed);
   virtual ~MmapMemory();
-  void clone(std::function<void(void *, uint64_t)> func, bool skip_zero = false) {
+  void clone(std::function<void(void *, uint64_t)> func, bool skip_zero = false) override {
     uint64_t n_bytes = skip_zero ? img_size : get_size();
     func(ram, n_bytes);
   }
-  uint64_t &at(uint64_t index) {
+  uint64_t &at(uint64_t index) override {
     on_access(index);
     return ram[index];
   }
 
-  uint64_t *as_ptr() {
+  uint64_t *as_ptr() override {
     return ram;
   }
-  virtual inline uint64_t get_img_size() {
+  uint64_t get_img_size() override {
     return img_size;
+  }
+  void mark_loaded_size(uint64_t n_bytes) override {
+    img_size = std::max(img_size, n_bytes);
   }
 };
 

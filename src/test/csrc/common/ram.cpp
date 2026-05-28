@@ -475,8 +475,9 @@ void LinearizedFootprintsMemory::save_linear_memory(const char *filename) {
 
 void overwrite_ram(const char *gcpt_restore, uint64_t overwrite_nbytes) {
   InputReader *reader = new FileReader(gcpt_restore);
-  int overwrite_size = reader->read_all(simMemory->as_ptr(), overwrite_nbytes);
-  Info("Overwrite %d bytes from file %s.\n", overwrite_size, gcpt_restore);
+  uint64_t overwrite_size = reader->read_all(simMemory->as_ptr(), overwrite_nbytes);
+  simMemory->mark_loaded_size(overwrite_size);
+  Info("Overwrite %" PRIu64 " bytes from file %s.\n", overwrite_size, gcpt_restore);
   delete reader;
 }
 

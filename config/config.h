@@ -89,7 +89,9 @@ extern unsigned long EMU_FLASH_SIZE;
 #define WAIT_INTERVAL 5
 
 // time to save a snapshot
+#ifndef SNAPSHOT_INTERVAL
 #define SNAPSHOT_INTERVAL 60 // unit: second
+#endif
 
 // if error, let simulator print debug info
 #define ENABLE_SIMULATOR_DEBUG_INFO

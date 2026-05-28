@@ -148,6 +148,12 @@ Emulator::Emulator(int argc, const char *argv[])
   init_db(args.dump_db, (args.select_db != NULL), args.select_db);
 #endif
 
+#ifndef CONFIG_NO_DIFFTEST
+  // init difftest before snapshot_load(), which restores REF state too.
+  auto ref_ramsize = args.ram_size ? simMemory->get_size() : 0;
+  difftest_init(args.enable_diff, ref_ramsize);
+#endif // CONFIG_NO_DIFFTEST
+
   if (args.enable_snapshot || args.snapshot_path) {
     dut_ptr->snapshot_init();
 
@@ -166,10 +172,6 @@ Emulator::Emulator(int argc, const char *argv[])
   dut_ptr->set_log_end(args.log_end);
 
 #ifndef CONFIG_NO_DIFFTEST
-  // init difftest
-  auto ref_ramsize = args.ram_size ? simMemory->get_size() : 0;
-  difftest_init(args.enable_diff, ref_ramsize);
-
   // init difftest traces
   if (args.trace_name) {
     for (int i = 0; i < NUM_CORES; i++) {

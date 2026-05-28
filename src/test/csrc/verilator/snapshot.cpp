@@ -33,7 +33,11 @@ void VerilatedSaveMem::save() {
   trailer();
   flush();
   auto saved_filename = m_filename;
-  if (size <= (512 * 1024 * 1024UL)) {
+  bool save_raw = size <= (512 * 1024 * 1024UL);
+#ifdef NO_GZ_COMPRESSION
+  save_raw = true;
+#endif
+  if (save_raw) {
     FILE *fp = fopen(saved_filename.c_str(), "w");
     assert(fp != NULL);
     fwrite(buf, size, 1, fp);
