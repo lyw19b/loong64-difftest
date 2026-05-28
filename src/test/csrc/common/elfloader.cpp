@@ -52,6 +52,12 @@ static uint64_t normalizeElfLoadAddr(uint64_t addr) {
 }
 
 static uint64_t elfAddrToRamOffset(uint64_t addr) {
+  switch (elf_loader_arch) {
+    case ElfLoaderArch::LoongArch64:
+    case ElfLoaderArch::LoongArch32S:
+    case ElfLoaderArch::LoongArch32R: return addr;
+    case ElfLoaderArch::Native: break;
+  }
   return addr >= PMEM_BASE ? addr - PMEM_BASE : addr;
 }
 

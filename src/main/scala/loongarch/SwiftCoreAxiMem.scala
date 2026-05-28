@@ -43,7 +43,6 @@ class SwiftCoreDifftestAxiMem extends Module {
   private val addrWidth = 40
   private val dataWidth = 128
   private val dataBytes = dataWidth / 8
-  private val pmemBase = "h1c000000".U(addrWidth.W)
   private val uartAddr = "h1ff10000".U(addrWidth.W)
 
   val io = IO(new Bundle {
@@ -113,8 +112,7 @@ class SwiftCoreDifftestAxiMem extends Module {
   private val uartWritePrevData = RegInit(0.U(dataWidth.W))
 
   private def memIndex(addr: UInt): UInt = {
-    val byteAddr = Mux(addr >= pmemBase, addr - pmemBase, addr)
-    byteAddr(addrWidth - 1, log2Ceil(dataBytes))
+    addr(addrWidth - 1, log2Ceil(dataBytes))
   }
 
   private def nextAddr(addr: UInt, size: UInt, burst: UInt): UInt = {

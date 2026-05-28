@@ -105,7 +105,7 @@ class AXICrossBar(
     memRanges: Seq[AXIAddressRange] = 
       Seq(
         AXIAddressRange(0x00000000L, 0x10000000L),
-        AXIAddressRange(0x1c000000L, 0x30000000L)
+        AXIAddressRange(0x1c000000L, 0x14000000L)
       ),
     devRange: AXIAddressRange = 
       AXIAddressRange(0x1fe00000L, 0x00200000L),
