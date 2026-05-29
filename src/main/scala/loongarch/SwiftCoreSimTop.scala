@@ -91,10 +91,10 @@ class SwiftCoreSimTop extends Module {
   difftest_step := 1.U
   difftest_uart_out_valid := uart.io.out_valid
   difftest_uart_out_ch := uart.io.out_ch
-  difftest_uart_in_valid := false.B
+  difftest_uart_in_valid := uart.io.in_valid
+  uart.io.in_ch := difftest_uart_in_ch
 
-  val unused = difftest_uart_in_ch.asUInt.orR ||
-    difftest_perfCtrl_clean ||
+  val unused = difftest_perfCtrl_clean ||
     difftest_perfCtrl_dump ||
     difftest_logCtrl_begin.orR ||
     difftest_logCtrl_end.orR

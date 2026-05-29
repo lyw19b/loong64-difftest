@@ -89,6 +89,8 @@ class AXIUART(
     val interrupt = Output(Bool())
     val out_valid = Output(Bool())
     val out_ch = Output(UInt(8.W))
+    val in_valid = Output(Bool())
+    val in_ch = Input(UInt(8.W))
   })
 
   private object State {
@@ -112,6 +114,9 @@ class AXIUART(
   val dll = RegInit(0.U(8.W))
   val dlm = RegInit(0.U(8.W))
   val fcr = RegInit(0.U(8.W))
+  val rxValid = RegInit(false.B)
+  val rxReqPending = RegInit(false.B)
+  val rxData = RegInit(0.U(8.W))
   val txIntrPending = RegInit(false.B)
   val uartWritePrev = RegInit(false.B)
   val uartWritePairSuppressed = RegInit(false.B)
@@ -134,10 +139,10 @@ class AXIUART(
   def readReg(addr: UInt): UInt = {
     val noInterrupt = 1.U(8.W)
     val thrEmptyInterrupt = 2.U(8.W)
-    val lsr = "h60".U(8.W)
+    val lsr = "h60".U(8.W) | rxValid
     MuxLookup(regOffset(addr), 0.U(8.W))(
       Seq(
-        0.U -> Mux(lcr(7), dll, 0.U(8.W)),
+        0.U -> Mux(lcr(7), dll, Mux(rxValid, rxData, 0.U(8.W))),
         1.U -> Mux(lcr(7), dlm, ier),
         2.U -> Mux(io.interrupt, thrEmptyInterrupt, noInterrupt),
         3.U -> lcr,
@@ -164,6 +169,7 @@ class AXIUART(
   io.interrupt := ier(1) && txIntrPending
   io.out_valid := false.B
   io.out_ch := 0.U
+  io.in_valid := !rxValid && !rxReqPending
 
   val awFire = io.axi.aw_valid && io.axi.aw_ready
   val wFire = io.axi.w_valid && io.axi.w_ready
@@ -218,6 +224,19 @@ class AXIUART(
 
   when(rFire && regOffset(rdAddr) === 2.U) {
     txIntrPending := false.B
+  }
+  when(rFire && regOffset(rdAddr) === 0.U && !lcr(7)) {
+    rxValid := false.B
+  }
+  when(io.in_valid) {
+    rxReqPending := true.B
+  }
+  when(rxReqPending) {
+    rxReqPending := false.B
+    when(io.in_ch =/= "hff".U) {
+      rxData := io.in_ch
+      rxValid := true.B
+    }
   }
 
   when(uartThrWrite) {

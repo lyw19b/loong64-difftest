@@ -16,7 +16,9 @@
 
 #include "uart.h"
 #include "common.h"
+#include <fcntl.h>
 #include "stdlib.h"
+#include <unistd.h>
 
 #define QUEUE_SIZE 1024
 static char queue[QUEUE_SIZE] = {};
@@ -50,9 +52,23 @@ static int uart_dequeue(void) {
 uint32_t uptime(void);
 uint8_t uart_getc() {
   static uint32_t lasttime = 0;
+  static bool stdin_init = false;
   uint32_t now = uptime();
 
   uint8_t ch = -1;
+  if (!stdin_init) {
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    if (flags >= 0) {
+      fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+    }
+    stdin_init = true;
+  }
+  if (read(STDIN_FILENO, &ch, 1) == 1) {
+    return ch;
+  }
+  if (f != r) {
+    return uart_dequeue();
+  }
   if (now - lasttime > 60 * 1000) {
     // 1 minute
     eprintf(ANSI_COLOR_RED "now = %ds\n" ANSI_COLOR_RESET, now / 1000);
@@ -97,7 +113,10 @@ static void preset_input() {
       "ifconfig -a\n"
       "./redis-server\n";
   char debian_cmd[128] = "root\n";
-  char *buf = debian_cmd;
+  const char *buf = getenv("DIFFTEST_UART_PRESET");
+  if (buf == NULL) {
+    buf = "";
+  }
   int i;
   for (i = 0; i < strlen(buf); i++) {
     uart_enqueue(buf[i]);
