@@ -684,16 +684,27 @@ void Emulator::snapshot_save() {
   snapshot_write(&cycleCnt, sizeof(cycleCnt));
 
   auto proxy = diff->proxy;
+  proxy->sync();
   snapshot_write(&proxy->state, sizeof(proxy->state));
 
   char *buf = (char *)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  proxy->mem_init(0, buf, size, REF_TO_DUT);
+#else
   proxy->mem_init(PMEM_BASE, buf, size, REF_TO_DUT);
+#endif // CONFIG_DIFFTEST_LOONGARCH
   snapshot_write(buf, size);
   munmap(buf, size);
 
   uint64_t csr_buf[4096];
   proxy->ref_csrcpy(csr_buf, REF_TO_DUT);
   snapshot_write(&csr_buf, sizeof(csr_buf));
+
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  la_tlb_state_t tlb_state = {};
+  proxy->tlbcpy(tlb_state, REF_TO_DUT);
+  snapshot_write(&tlb_state, sizeof(tlb_state));
+#endif // CONFIG_DIFFTEST_LOONGARCH
 #endif // CONFIG_NO_DIFFTEST
 
   long sdcard_offset;
@@ -727,12 +738,22 @@ void Emulator::snapshot_load(const char *filename) {
 
   char *buf = (char *)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
   snapshot_read(buf, size);
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  proxy->mem_init(0, buf, size, DUT_TO_REF);
+#else
   proxy->mem_init(PMEM_BASE, buf, size, DUT_TO_REF);
+#endif // CONFIG_DIFFTEST_LOONGARCH
   munmap(buf, size);
 
   uint64_t csr_buf[4096];
   snapshot_read(&csr_buf, sizeof(csr_buf));
   proxy->ref_csrcpy(csr_buf, DUT_TO_REF);
+
+#ifdef CONFIG_DIFFTEST_LOONGARCH
+  la_tlb_state_t tlb_state = {};
+  snapshot_read(&tlb_state, sizeof(tlb_state));
+  proxy->tlbcpy(tlb_state, DUT_TO_REF);
+#endif // CONFIG_DIFFTEST_LOONGARCH
 
   // No one uses snapshot when !has_commit, isn't it?
   diff->set_has_commit();
