@@ -337,6 +337,15 @@ bool RefProxy::do_csr_waive(DiffTestState *dut) {
     sync_timer_to_ref = true;
     has_waive = true;
   }
+  // LoongArch CPU samples external interrupt pins into ESTAT.IS[9:2] every cycle.
+  // The LoongArch REF in CONFIG_DIFF does not poll device interrupts by itself;
+  // DUT owns asynchronous interrupt capture and notifies REF through ArchEvent.
+  constexpr uint64_t external_pending = 0xffULL << 2;
+  if ((state.csr.estat ^ dut->regs.csr.estat) & external_pending) {
+    state.csr.estat = (state.csr.estat & ~external_pending) | (dut->regs.csr.estat & external_pending);
+    sync_timer_to_ref = true;
+    has_waive = true;
+  }
   if (sync_timer_to_ref) {
     ref_csrcpy(&state, DUT_TO_REF);
   }
