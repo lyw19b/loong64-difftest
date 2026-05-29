@@ -19,7 +19,9 @@
 
 #include "simulator.h"
 
-VerilatorSim::VerilatorSim() : dut(new VSimTop) {}
+VerilatorSim::VerilatorSim() : dut(new VSimTop) {
+  dut->difftest_uart_in_ch = 0xff;
+}
 
 VerilatorSim::~VerilatorSim() {
 #if VM_TRACE == 1
