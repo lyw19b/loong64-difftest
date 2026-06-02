@@ -18,11 +18,26 @@
 #include "common.h"
 #include <fcntl.h>
 #include "stdlib.h"
+#include <termios.h>
 #include <unistd.h>
 
 #define QUEUE_SIZE 1024
 static char queue[QUEUE_SIZE] = {};
 static int f = 0, r = 0;
+static int saved_stdin_flags = -1;
+static struct termios saved_termios;
+static bool termios_saved = false;
+
+static void restore_stdin() {
+  if (saved_stdin_flags >= 0) {
+    fcntl(STDIN_FILENO, F_SETFL, saved_stdin_flags);
+    saved_stdin_flags = -1;
+  }
+  if (termios_saved) {
+    tcsetattr(STDIN_FILENO, TCSANOW, &saved_termios);
+    termios_saved = false;
+  }
+}
 
 static void uart_enqueue(char ch) {
   int next = (r + 1) % QUEUE_SIZE;
@@ -57,17 +72,30 @@ uint8_t uart_getc() {
 
   uint8_t ch = -1;
   if (!stdin_init) {
-    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    if (flags >= 0) {
-      fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+    saved_stdin_flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    if (saved_stdin_flags >= 0) {
+      fcntl(STDIN_FILENO, F_SETFL, saved_stdin_flags | O_NONBLOCK);
     }
+    if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &saved_termios) == 0) {
+      struct termios raw = saved_termios;
+      raw.c_lflag &= ~(ECHO | ICANON);
+      raw.c_cc[VMIN] = 0;
+      raw.c_cc[VTIME] = 0;
+      tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+      termios_saved = true;
+    }
+    atexit(restore_stdin);
     stdin_init = true;
-  }
-  if (read(STDIN_FILENO, &ch, 1) == 1) {
-    return ch;
   }
   if (f != r) {
     return uart_dequeue();
+  }
+  if (read(STDIN_FILENO, &ch, 1) == 1) {
+    uint8_t queued_ch;
+    while (read(STDIN_FILENO, &queued_ch, 1) == 1) {
+      uart_enqueue(queued_ch);
+    }
+    return ch;
   }
   if (now - lasttime > 60 * 1000) {
     // 1 minute
@@ -128,6 +156,7 @@ void init_uart(void) {
 }
 
 void finish_uart(void) {
+  restore_stdin();
   memset(queue, 0, sizeof(queue));
   f = 0;
   r = 0;

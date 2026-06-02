@@ -253,6 +253,11 @@ Emulator::~Emulator() {
   stats.update(difftest[0]->dut);
 #endif // CONFIG_NO_DIFFTEST
 
+  if (args.enable_snapshot && trapCode != STATE_GOODTRAP) {
+    snapshot_save();
+    dut_ptr->snapshot_save(-1); // save all snapshots
+  }
+
   simMemory->display_stats();
   delete simMemory;
   simMemory = nullptr;
@@ -266,10 +271,6 @@ Emulator::~Emulator() {
 #ifndef CONFIG_NO_DIFFTEST
   difftest_finish();
 #endif // CONFIG_NO_DIFFTEST
-
-  if (args.enable_snapshot && trapCode != STATE_GOODTRAP && trapCode != STATE_LIMIT_EXCEEDED) {
-    dut_ptr->snapshot_save(-1); // save all snapshots
-  }
 
 #ifdef ENABLE_CHISEL_DB
   if (args.dump_db) {
@@ -679,32 +680,34 @@ void Emulator::snapshot_save() {
   snapshot_write(simMemory->as_ptr(), size);
 
 #ifndef CONFIG_NO_DIFFTEST
-  auto diff = difftest[0];
-  uint64_t cycleCnt = diff->get_trap_event()->cycleCnt;
-  snapshot_write(&cycleCnt, sizeof(cycleCnt));
+  if (args.enable_diff) {
+    auto diff = difftest[0];
+    uint64_t cycleCnt = diff->get_trap_event()->cycleCnt;
+    snapshot_write(&cycleCnt, sizeof(cycleCnt));
 
-  auto proxy = diff->proxy;
-  proxy->sync();
-  snapshot_write(&proxy->state, sizeof(proxy->state));
+    auto proxy = diff->proxy;
+    proxy->sync();
+    snapshot_write(&proxy->state, sizeof(proxy->state));
 
-  char *buf = (char *)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    char *buf = (char *)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
 #ifdef CONFIG_DIFFTEST_LOONGARCH
-  proxy->mem_init(0, buf, size, REF_TO_DUT);
+    proxy->mem_init(0, buf, size, REF_TO_DUT);
 #else
-  proxy->mem_init(PMEM_BASE, buf, size, REF_TO_DUT);
+    proxy->mem_init(PMEM_BASE, buf, size, REF_TO_DUT);
 #endif // CONFIG_DIFFTEST_LOONGARCH
-  snapshot_write(buf, size);
-  munmap(buf, size);
+    snapshot_write(buf, size);
+    munmap(buf, size);
 
-  uint64_t csr_buf[4096];
-  proxy->ref_csrcpy(csr_buf, REF_TO_DUT);
-  snapshot_write(&csr_buf, sizeof(csr_buf));
+    uint64_t csr_buf[4096];
+    proxy->ref_csrcpy(csr_buf, REF_TO_DUT);
+    snapshot_write(&csr_buf, sizeof(csr_buf));
 
 #ifdef CONFIG_DIFFTEST_LOONGARCH
-  la_tlb_state_t tlb_state = {};
-  proxy->tlbcpy(tlb_state, REF_TO_DUT);
-  snapshot_write(&tlb_state, sizeof(tlb_state));
+    la_tlb_state_t tlb_state = {};
+    proxy->tlbcpy(tlb_state, REF_TO_DUT);
+    snapshot_write(&tlb_state, sizeof(tlb_state));
 #endif // CONFIG_DIFFTEST_LOONGARCH
+  }
 #endif // CONFIG_NO_DIFFTEST
 
   long sdcard_offset;
@@ -728,35 +731,37 @@ void Emulator::snapshot_load(const char *filename) {
   snapshot_read(simMemory->as_ptr(), size);
 
 #ifndef CONFIG_NO_DIFFTEST
-  auto diff = difftest[0];
-  uint64_t *cycleCnt = &(diff->get_trap_event()->cycleCnt);
-  snapshot_read(cycleCnt, sizeof(*cycleCnt));
+  if (args.enable_diff) {
+    auto diff = difftest[0];
+    uint64_t *cycleCnt = &(diff->get_trap_event()->cycleCnt);
+    snapshot_read(cycleCnt, sizeof(*cycleCnt));
 
-  auto proxy = diff->proxy;
-  snapshot_read(&proxy->state, sizeof(proxy->state));
-  proxy->ref_regcpy(&proxy->state, DUT_TO_REF, false);
+    auto proxy = diff->proxy;
+    snapshot_read(&proxy->state, sizeof(proxy->state));
+    proxy->ref_regcpy(&proxy->state, DUT_TO_REF, false);
 
-  char *buf = (char *)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
-  snapshot_read(buf, size);
+    char *buf = (char *)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    snapshot_read(buf, size);
 #ifdef CONFIG_DIFFTEST_LOONGARCH
-  proxy->mem_init(0, buf, size, DUT_TO_REF);
+    proxy->mem_init(0, buf, size, DUT_TO_REF);
 #else
-  proxy->mem_init(PMEM_BASE, buf, size, DUT_TO_REF);
+    proxy->mem_init(PMEM_BASE, buf, size, DUT_TO_REF);
 #endif // CONFIG_DIFFTEST_LOONGARCH
-  munmap(buf, size);
+    munmap(buf, size);
 
-  uint64_t csr_buf[4096];
-  snapshot_read(&csr_buf, sizeof(csr_buf));
-  proxy->ref_csrcpy(csr_buf, DUT_TO_REF);
+    uint64_t csr_buf[4096];
+    snapshot_read(&csr_buf, sizeof(csr_buf));
+    proxy->ref_csrcpy(csr_buf, DUT_TO_REF);
 
 #ifdef CONFIG_DIFFTEST_LOONGARCH
-  la_tlb_state_t tlb_state = {};
-  snapshot_read(&tlb_state, sizeof(tlb_state));
-  proxy->tlbcpy(tlb_state, DUT_TO_REF);
+    la_tlb_state_t tlb_state = {};
+    snapshot_read(&tlb_state, sizeof(tlb_state));
+    proxy->tlbcpy(tlb_state, DUT_TO_REF);
 #endif // CONFIG_DIFFTEST_LOONGARCH
 
-  // No one uses snapshot when !has_commit, isn't it?
-  diff->set_has_commit();
+    // No one uses snapshot when !has_commit, isn't it?
+    diff->set_has_commit();
+  }
 #endif // CONFIG_NO_DIFFTEST
 
   long sdcard_offset = 0;

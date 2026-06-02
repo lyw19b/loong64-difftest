@@ -105,6 +105,15 @@ static inline bool is_loongarch_rdtime(uint32_t instr) {
 static inline bool is_loongarch_idle(uint32_t instr) {
   return (instr & 0xffff8000U) == 0x06488000U;
 }
+
+static inline bool is_loongarch_live_csrrd(uint32_t instr) {
+  if ((instr & 0xff0003e0U) != 0x04000000U) {
+    return false;
+  }
+  const uint32_t csr = (instr >> 10) & 0x3fffU;
+  return csr == 0x5 || csr == 0x42; // ESTAT and TVAL are DUT-clocked live CSRs.
+}
+
 #define IS_TRIGGERCSR(instr)   is_loongarch_rdtime(instr)
 
 static inline uint64_t loongarch_pc_to_ram_offset(uint64_t pc) {
@@ -234,6 +243,21 @@ int InstrCommitChecker::check(const DifftestInstrCommit &probe) {
     }
     if (rj != 0) {
       proxy->state.xrf.value[rj] = dut.regs.xrf.value[rj];
+    }
+    proxy->sync(true);
+
+    if (probe.pc == ref_pc) {
+      return STATE_OK;
+    }
+  }
+
+  if (is_loongarch_live_csrrd(ref_instr) && (probe.pc == ref_pc || probe.pc == ref_pc + 4)) {
+    uint32_t rd = ref_instr & 0x1f;
+
+    proxy->sync();
+    proxy->state.pc = ref_pc + 4;
+    if (rd != 0) {
+      proxy->state.xrf.value[rd] = commit_data;
     }
     proxy->sync(true);
 

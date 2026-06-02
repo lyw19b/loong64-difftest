@@ -114,15 +114,22 @@ class AXIUART(
   val dll = RegInit(0.U(8.W))
   val dlm = RegInit(0.U(8.W))
   val fcr = RegInit(0.U(8.W))
-  val rxValid = RegInit(false.B)
-  val rxReqPending = RegInit(false.B)
-  val rxData = RegInit(0.U(8.W))
+  val rxFifoDepth = 16
+  val rxFifo = Reg(Vec(rxFifoDepth, UInt(8.W)))
+  val rxHead = RegInit(0.U(log2Ceil(rxFifoDepth).W))
+  val rxTail = RegInit(0.U(log2Ceil(rxFifoDepth).W))
+  val rxCount = RegInit(0.U((log2Ceil(rxFifoDepth) + 1).W))
+  val rxValid = rxCount =/= 0.U
+  val rxFull = rxCount === rxFifoDepth.U
+  val rxData = rxFifo(rxHead)
   val txIntrPending = RegInit(false.B)
   val uartWritePrev = RegInit(false.B)
   val uartWritePairSuppressed = RegInit(false.B)
   val uartWritePrevAddr = RegInit(0.U(addrWidth.W))
   val uartWritePrevStrb = RegInit(0.U((dataWidth / 8).W))
   val uartWritePrevData = RegInit(0.U(dataWidth.W))
+  val rxIntr = ier(0) && rxValid
+  val txIntr = ier(1) && txIntrPending
 
   def byteLane(addr: UInt): UInt = addr(log2Ceil(dataWidth / 8) - 1, 0)
 
@@ -138,13 +145,15 @@ class AXIUART(
 
   def readReg(addr: UInt): UInt = {
     val noInterrupt = 1.U(8.W)
+    val rxDataInterrupt = 4.U(8.W)
     val thrEmptyInterrupt = 2.U(8.W)
     val lsr = "h60".U(8.W) | rxValid
+    val iir = Mux(rxIntr, rxDataInterrupt, Mux(txIntr, thrEmptyInterrupt, noInterrupt))
     MuxLookup(regOffset(addr), 0.U(8.W))(
       Seq(
         0.U -> Mux(lcr(7), dll, Mux(rxValid, rxData, 0.U(8.W))),
         1.U -> Mux(lcr(7), dlm, ier),
-        2.U -> Mux(io.interrupt, thrEmptyInterrupt, noInterrupt),
+        2.U -> iir,
         3.U -> lcr,
         4.U -> mcr,
         5.U -> lsr,
@@ -166,10 +175,10 @@ class AXIUART(
   io.axi.r_id := rdId
   io.axi.r_resp := 0.U
   io.axi.r_last := rdCnt === rdLen
-  io.interrupt := ier(1) && txIntrPending
+  io.interrupt := rxIntr || txIntr
   io.out_valid := false.B
   io.out_ch := 0.U
-  io.in_valid := !rxValid && !rxReqPending
+  io.in_valid := !rxFull
 
   val awFire = io.axi.aw_valid && io.axi.aw_ready
   val wFire = io.axi.w_valid && io.axi.w_ready
@@ -225,17 +234,22 @@ class AXIUART(
   when(rFire && regOffset(rdAddr) === 2.U) {
     txIntrPending := false.B
   }
-  when(rFire && regOffset(rdAddr) === 0.U && !lcr(7)) {
-    rxValid := false.B
+  val rxPop = rFire && regOffset(rdAddr) === 0.U && !lcr(7) && rxValid
+  val rxPush = io.in_valid && io.in_ch =/= "hff".U
+
+  when(rxPush) {
+    rxFifo(rxTail) := io.in_ch
+    rxTail := rxTail + 1.U
   }
-  when(io.in_valid) {
-    rxReqPending := true.B
+  when(rxPop) {
+    rxHead := rxHead + 1.U
   }
-  when(rxReqPending) {
-    rxReqPending := false.B
-    when(io.in_ch =/= "hff".U) {
-      rxData := io.in_ch
-      rxValid := true.B
+  switch(Cat(rxPush, rxPop)) {
+    is("b10".U) {
+      rxCount := rxCount + 1.U
+    }
+    is("b01".U) {
+      rxCount := rxCount - 1.U
     }
   }
 

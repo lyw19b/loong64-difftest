@@ -102,7 +102,7 @@ class SwiftCoreSimTop extends Module {
 
   cpu.pad_cpu_rst_b := !reset.asBool
   cpu.pll_cpu_clk := clock
-  cpu.ext_interrupt := Cat(0.U(7.W), uart.io.interrupt)
+  cpu.ext_interrupt := Cat(0.U(6.W), uart.io.interrupt, 0.U(1.W))
 
   cpu.pad_biu_arready := xbar.io.in.ar_ready
   cpu.pad_biu_awready := xbar.io.in.aw_ready
